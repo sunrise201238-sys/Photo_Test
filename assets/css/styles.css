@@ -404,6 +404,14 @@ canvas {
   aspect-ratio: 4 / 3;
 }
 
+.canvas-wrapper {
+  position: relative;
+}
+
+.canvas-wrapper canvas {
+  display: block;
+}
+
 .overlay-controls {
   display: flex;
   flex-wrap: wrap;

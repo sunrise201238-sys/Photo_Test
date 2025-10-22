@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Photo Aesthetic Assistant</title>
   <link rel="stylesheet" href="assets/css/styles.css">
+  <link rel="stylesheet" href="assets/css/ai_panel.css">
 </head>
 <body>
   <div class="app-shell">
@@ -49,14 +50,18 @@
               <h2 data-i18n="original_title">Original</h2>
               <span class="canvas-meta" id="original-meta"></span>
             </div>
-            <canvas id="original-canvas" width="640" height="480" role="img" aria-label="Original image preview"></canvas>
+            <div class="canvas-wrapper">
+              <canvas id="original-canvas" width="640" height="480" role="img" aria-label="Original image preview"></canvas>
+            </div>
           </div>
           <div class="canvas-card">
             <div class="canvas-header">
               <h2 data-i18n="improved_title">Improved Suggestion</h2>
               <span class="canvas-meta" id="improved-meta"></span>
             </div>
-            <canvas id="improved-canvas" width="640" height="480" role="img" aria-label="Improved image preview"></canvas>
+            <div class="canvas-wrapper">
+              <canvas id="improved-canvas" width="640" height="480" role="img" aria-label="Improved image preview"></canvas>
+            </div>
             <button type="button" id="download-button" class="primary" data-i18n="download_button" disabled>Download Improved Image</button>
           </div>
         </div>
@@ -67,6 +72,32 @@
           </label>
           <button type="button" class="ghost" id="reset-button" data-i18n="reset_button">Reset</button>
         </div>
+        <aside class="ai-panel" id="ai-panel">
+          <header class="ai-panel__header">
+            <h3 data-i18n="ai_panel_title">AI composition insights</h3>
+            <span class="ai-status" id="ai-status-text" data-i18n="ai_status_offline">Offline — using rule-based analysis</span>
+          </header>
+          <dl class="ai-metrics">
+            <div>
+              <dt data-i18n="ai_composition_score">Composition</dt>
+              <dd id="ai-composition-score">—</dd>
+            </div>
+            <div>
+              <dt data-i18n="ai_aesthetic_score">Aesthetic</dt>
+              <dd id="ai-aesthetic-score">—</dd>
+            </div>
+            <div>
+              <dt data-i18n="ai_latency_label">Latency</dt>
+              <dd id="ai-latency">—</dd>
+            </div>
+          </dl>
+          <div class="ai-mode">
+            <span data-i18n="ai_mode_label">Processing mode</span>
+            <strong id="ai-mode" data-i18n="ai_mode_rules">Rules only</strong>
+            <span class="ai-processing" id="ai-processing-mode" data-i18n="ai_processing_rules">Rules</span>
+          </div>
+          <ul class="ai-suggestions" id="ai-suggestions"></ul>
+        </aside>
         <aside class="tip-grid">
           <article class="tip-card">
             <h3 data-i18n="tip_subject_title">Find the subject</h3>
