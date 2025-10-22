@@ -1,3 +1,8 @@
+import { AIInferenceController } from './ai_inference_controller.js';
+import { CompositionEngine, clamp } from './composition_engine.js';
+import { estimateSaliency } from './saliency_fallback.js';
+import { estimateHorizon } from './horizon_detector.js';
+
 const MAX_DIMENSION = 2048;
 
 const metricsContainer = document.getElementById('metrics');
@@ -17,6 +22,14 @@ const langToggleButtons = document.querySelectorAll('.lang-toggle button');
 const analysisSummary = document.getElementById('analysis-summary');
 const engineStatus = document.getElementById('engine-status');
 const errorToast = document.getElementById('error-toast');
+const aiPanel = document.getElementById('ai-panel');
+const aiStatusText = document.getElementById('ai-status-text');
+const aiModeLabel = document.getElementById('ai-mode');
+const aiCompositionScore = document.getElementById('ai-composition-score');
+const aiAestheticScore = document.getElementById('ai-aesthetic-score');
+const aiLatency = document.getElementById('ai-latency');
+const aiSuggestions = document.getElementById('ai-suggestions');
+const aiProcessingMode = document.getElementById('ai-processing-mode');
 
 const fallbackDictionaries = {
   'en-US': {
@@ -37,6 +50,32 @@ const fallbackDictionaries = {
     "engine_loading": "Loading vision engine…",
     "engine_ready": "Vision engine ready",
     "engine_error": "Vision engine unavailable",
+    "ai_panel_title": "AI composition insights",
+    "ai_model_status_loading": "Model loading…",
+    "ai_model_status_ready": "Model ready",
+    "ai_model_status_rules": "Rules-only mode",
+    "ai_model_status_error": "Model unavailable",
+    "ai_model_status_cloud": "Cloud scoring active",
+    "ai_status_offline": "Offline — using rule-based analysis",
+    "ai_status_ready": "Local AI scoring active",
+    "ai_status_rules": "Rule-based scoring active",
+    "ai_status_cloud": "Cloud AI scoring active",
+    "ai_mode_label": "Processing mode",
+    "ai_mode_local": "Local",
+    "ai_mode_cloud": "Cloud",
+    "ai_mode_rules": "Rules only",
+    "ai_composition_score": "Composition",
+    "ai_aesthetic_score": "Aesthetic",
+    "ai_suggestion_crop": "Crop {{width}}×{{height}} px",
+    "ai_suggestion_rotation": "Rotate {{angle}}",
+    "ai_suggestion_thirds": "Thirds alignment {{score}}",
+    "ai_suggestion_saliency": "Subject confidence {{confidence}}",
+    "ai_latency_label": "Latency",
+    "ai_processing_mode": "Scoring",
+    "ai_processing_local": "Local",
+    "ai_processing_cloud": "Cloud",
+    "ai_processing_rules": "Rules",
+    "ai_unavailable": "AI model unavailable – falling back to rules",
     "metric_main_subject": "Main subject position",
     "metric_horizon": "Horizon angle",
     "metric_rule_of_thirds": "Rule-of-thirds alignment",
@@ -120,6 +159,32 @@ const fallbackDictionaries = {
     "engine_loading": "視覺引擎載入中…",
     "engine_ready": "視覺引擎就緒",
     "engine_error": "視覺引擎無法使用",
+    "ai_panel_title": "AI 構圖洞察",
+    "ai_model_status_loading": "模型載入中…",
+    "ai_model_status_ready": "模型就緒",
+    "ai_model_status_rules": "僅使用規則模式",
+    "ai_model_status_error": "模型無法使用",
+    "ai_model_status_cloud": "雲端評分啟用",
+    "ai_status_offline": "離線模式 — 使用規則分析",
+    "ai_status_ready": "本地 AI 評分啟用",
+    "ai_status_rules": "規則評分啟用",
+    "ai_status_cloud": "雲端 AI 評分啟用",
+    "ai_mode_label": "處理模式",
+    "ai_mode_local": "本地",
+    "ai_mode_cloud": "雲端",
+    "ai_mode_rules": "規則",
+    "ai_composition_score": "構圖",
+    "ai_aesthetic_score": "美感",
+    "ai_suggestion_crop": "裁切 {{width}}×{{height}} px",
+    "ai_suggestion_rotation": "旋轉 {{angle}}",
+    "ai_suggestion_thirds": "三分線對齊 {{score}}",
+    "ai_suggestion_saliency": "主體信心 {{confidence}}",
+    "ai_latency_label": "延遲",
+    "ai_processing_mode": "評分",
+    "ai_processing_local": "本地",
+    "ai_processing_cloud": "雲端",
+    "ai_processing_rules": "規則",
+    "ai_unavailable": "AI 模型不可用，改用規則評估",
     "metric_main_subject": "主體位置",
     "metric_horizon": "地平線角度",
     "metric_rule_of_thirds": "三分構圖對齊",
@@ -196,6 +261,11 @@ let lastImprovedCanvas = null;
 let engineStatusState = 'loading';
 let errorTimeoutId = null;
 let dictionaryWarningShown = false;
+const compositionEngine = new CompositionEngine({ maxCandidates: 6 });
+const aiController = new AIInferenceController({ modelVersion: 'v1.0.0', modelUrl: 'models/emo_aen_v1_quant.onnx' });
+let bestCandidate = null;
+let aiInferenceResults = null;
+let aiStatusState = 'loading';
 
 const formatters = {
   percent: value => `${Math.round(value * 100)}%`,
@@ -203,10 +273,6 @@ const formatters = {
   score: value => value.toFixed(2),
   numeric: value => value.toFixed(1)
 };
-
-function clamp(value, min = 0, max = 255) {
-  return Math.min(max, Math.max(min, value));
-}
 
 function cloneFallback() {
   return JSON.parse(JSON.stringify(fallbackDictionaries));
@@ -216,15 +282,117 @@ function updateStatusBadge() {
   if (!engineStatus) return;
   const dict = dictionaries[currentLang] || {};
   engineStatus.classList.remove('ready', 'error');
-  let key = 'engine_loading';
-  if (engineStatusState === 'ready') {
-    key = 'engine_ready';
+  const keyMap = {
+    loading: 'ai_model_status_loading',
+    ready: 'ai_model_status_ready',
+    local: 'ai_model_status_ready',
+    cloud: 'ai_model_status_cloud',
+    rules: 'ai_model_status_rules',
+    error: 'ai_model_status_error'
+  };
+  let key = keyMap[engineStatusState] || 'ai_model_status_loading';
+  if (engineStatusState === 'ready' || engineStatusState === 'local' || engineStatusState === 'cloud') {
     engineStatus.classList.add('ready');
   } else if (engineStatusState === 'error') {
-    key = 'engine_error';
     engineStatus.classList.add('error');
   }
   engineStatus.textContent = dict[key] || engineStatus.textContent;
+}
+
+function updateAiPanel(candidate, metrics) {
+  if (!aiPanel) return;
+  const dict = dictionaries[currentLang] || {};
+  const status = aiController.getStatus ? aiController.getStatus() : { mode: 'rules', status: 'loading', latency: 0 };
+  const statusKeyMap = {
+    loading: 'ai_model_status_loading',
+    ready: 'ai_status_ready',
+    local: 'ai_status_ready',
+    cloud: 'ai_status_cloud',
+    rules: 'ai_status_rules',
+    error: 'ai_unavailable'
+  };
+  const modeKeyMap = {
+    cloud: 'ai_mode_cloud',
+    local: 'ai_mode_local',
+    ready: 'ai_mode_local',
+    rules: 'ai_mode_rules',
+    loading: 'ai_mode_rules',
+    error: 'ai_mode_rules'
+  };
+  const processingKeyMap = {
+    cloud: 'ai_processing_cloud',
+    local: 'ai_processing_local',
+    ready: 'ai_processing_local',
+    rules: 'ai_processing_rules',
+    loading: 'ai_processing_rules',
+    error: 'ai_processing_rules'
+  };
+  if (aiStatusText) {
+    const key = statusKeyMap[aiStatusState] || 'ai_status_offline';
+    aiStatusText.textContent = dict[key] || dict['ai_status_offline'] || '';
+  }
+  if (aiModeLabel) {
+    const modeKey = modeKeyMap[status.mode] || 'ai_mode_rules';
+    aiModeLabel.textContent = dict[modeKey] || dict['ai_mode_rules'] || '';
+  }
+  if (aiProcessingMode) {
+    const processingKey = processingKeyMap[status.mode] || 'ai_processing_rules';
+    aiProcessingMode.textContent = dict[processingKey] || dict['ai_processing_rules'] || '';
+  }
+  if (aiCompositionScore) {
+    aiCompositionScore.textContent = candidate ? formatters.score(candidate.compositionScore) : '—';
+  }
+  if (aiAestheticScore) {
+    aiAestheticScore.textContent = candidate ? formatters.score(candidate.aestheticScore) : '—';
+  }
+  if (aiLatency) {
+    const latency = status.latency ? Math.round(status.latency) : null;
+    aiLatency.textContent = latency ? `${latency} ms` : '—';
+  }
+  if (aiSuggestions) {
+    aiSuggestions.innerHTML = '';
+    if (candidate && metrics) {
+      const crop = candidate.crop || metrics.bestCrop;
+      const rotationDegrees = typeof metrics.bestRotation === 'number'
+        ? metrics.bestRotation
+        : candidate.rotation ?? metrics.horizonAngle ?? 0;
+      const thirdsScore = candidate.features?.ruleOfThirdsScore ?? metrics.ruleOfThirdsScore ?? 0;
+      const saliencyConfidence = Math.min(
+        1,
+        Math.max(0, metrics.detectors?.saliency?.confidence ?? metrics.saliencyConfidence ?? 0)
+      );
+      const suggestions = [
+        dict['ai_suggestion_crop']
+          ? dict['ai_suggestion_crop']
+              .replace('{{width}}', Math.round(crop.width))
+              .replace('{{height}}', Math.round(crop.height))
+          : `Crop ${Math.round(crop.width)}×${Math.round(crop.height)} px`,
+        dict['ai_suggestion_rotation']
+          ? dict['ai_suggestion_rotation'].replace(
+              '{{angle}}',
+              formatters.degrees(Math.abs(rotationDegrees))
+            )
+          : `Rotate ${formatters.degrees(Math.abs(rotationDegrees))}`,
+        dict['ai_suggestion_thirds']
+          ? dict['ai_suggestion_thirds'].replace(
+              '{{score}}',
+              formatters.score(thirdsScore)
+            )
+          : `Thirds ${formatters.score(thirdsScore)}`,
+        dict['ai_suggestion_saliency']
+          ? dict['ai_suggestion_saliency'].replace(
+              '{{confidence}}',
+              formatters.percent(saliencyConfidence)
+            )
+          : `Saliency ${formatters.percent(saliencyConfidence)}`
+      ];
+      for (const text of suggestions) {
+        const li = document.createElement('li');
+        li.textContent = text;
+        aiSuggestions.appendChild(li);
+      }
+    }
+  }
 }
 
 function setLoading(isLoading) {
@@ -247,7 +415,7 @@ function setCanvasMeta(element, source) {
 }
 
 function drawGuides(canvas, metrics, options = {}) {
-  const { showGuides = true, includeAnnotations = true } = options;
+  const { showGuides = true, includeAnnotations = true, highlightCrop = false } = options;
   if (!showGuides) return;
   const ctx = canvas.getContext('2d');
   const w = canvas.width;
@@ -308,6 +476,17 @@ function drawGuides(canvas, metrics, options = {}) {
     ctx.lineTo(metrics.horizonLine[1].x * scaleX, metrics.horizonLine[1].y * scaleY);
     ctx.stroke();
   }
+  if (includeAnnotations && highlightCrop && metrics && metrics.bestCrop) {
+    const scaleX = w / metrics.imageSize.width;
+    const scaleY = h / metrics.imageSize.height;
+    const crop = metrics.bestCrop;
+    ctx.save();
+    ctx.setLineDash([guideWidth * 4, guideWidth * 2]);
+    ctx.lineWidth = Math.max(2, guideWidth * 1.4);
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.9)';
+    ctx.strokeRect(crop.x * scaleX, crop.y * scaleY, crop.width * scaleX, crop.height * scaleY);
+    ctx.restore();
+  }
   ctx.restore();
 }
 
@@ -330,6 +509,9 @@ function cleanupCanvases() {
 function resetInterface() {
   cleanupCanvases();
   currentMetrics = null;
+  bestCandidate = null;
+  aiInferenceResults = null;
+  aiStatusState = 'loading';
   metricsContainer.innerHTML = '';
   const dict = dictionaries[currentLang] || {};
   analysisSummary.innerHTML = dict['analysis_summary_default'] || '';
@@ -341,6 +523,7 @@ function resetInterface() {
   setCanvasMeta(improvedMeta, null);
   downloadButton.disabled = true;
   revokeDownloadUrl();
+  updateAiPanel(null, null);
 }
 
 function revokeDownloadUrl() {
@@ -376,7 +559,8 @@ function renderToCanvas(targetCanvas, sourceCanvas, options = {}) {
   ctx.drawImage(sourceCanvas, 0, 0);
   drawGuides(targetCanvas, options.metrics, {
     showGuides: options.showGuides,
-    includeAnnotations: options.includeAnnotations
+    includeAnnotations: options.includeAnnotations,
+    highlightCrop: options.highlightCrop
   });
 }
 
@@ -386,7 +570,8 @@ function refreshCanvases() {
     renderToCanvas(originalCanvas, lastOriginalCanvas, {
       showGuides: toggleGrid.checked,
       metrics: currentMetrics,
-      includeAnnotations: true
+      includeAnnotations: true,
+      highlightCrop: true
     });
     setCanvasMeta(originalMeta, lastOriginalCanvas);
   }
@@ -394,7 +579,8 @@ function refreshCanvases() {
     renderToCanvas(improvedCanvas, lastImprovedCanvas, {
       showGuides: toggleGrid.checked,
       metrics: currentMetrics,
-      includeAnnotations: false
+      includeAnnotations: false,
+      highlightCrop: false
     });
     setCanvasMeta(improvedMeta, lastImprovedCanvas);
   }
@@ -421,6 +607,7 @@ function translatePage() {
     setCanvasMeta(improvedMeta, lastImprovedCanvas);
   }
   updateStatusBadge();
+  updateAiPanel(bestCandidate, currentMetrics);
 }
 
 function renderMetrics(metrics) {
@@ -446,6 +633,10 @@ function renderMetrics(metrics) {
     ['metric_leading_lines', `${formatters.degrees(metrics.leadingLines.angle)} / ${formatters.percent(metrics.leadingLines.strength)}`],
     ['metric_texture', formatters.percent(metrics.textureStrength)]
   ];
+  if (metrics.ai) {
+    entries.unshift(['ai_aesthetic_score', formatters.score(metrics.ai.aesthetic || metrics.ai.composition)]);
+    entries.unshift(['ai_composition_score', formatters.score(metrics.ai.composition)]);
+  }
 
   for (const [labelKey, value] of entries) {
     const fragment = metricTemplate.content.cloneNode(true);
@@ -748,895 +939,86 @@ async function readImageFile(file) {
   return { canvas: resizedCanvas, imageData };
 }
 
-function computeStatistics(values) {
-  let sum = 0;
-  for (let i = 0; i < values.length; i++) {
-    sum += values[i];
-  }
-  const mean = sum / values.length;
-  let varianceSum = 0;
-  for (let i = 0; i < values.length; i++) {
-    const diff = values[i] - mean;
-    varianceSum += diff * diff;
-  }
-  return { mean, std: Math.sqrt(varianceSum / values.length) };
-}
-
-function samplePercentile(values, percentile) {
-  const step = Math.max(1, Math.floor(values.length / 10000));
-  const sample = [];
-  for (let i = 0; i < values.length; i += step) {
-    sample.push(values[i]);
-  }
-  sample.sort((a, b) => a - b);
-  const index = Math.min(sample.length - 1, Math.max(0, Math.floor(percentile * (sample.length - 1))));
-  return sample[index] || 0;
-}
-
-function computeMetrics(imageData) {
-  const { width, height, data } = imageData;
-  const pixelCount = width * height;
-  const grayscale = new Float32Array(pixelCount);
-  const gradX = new Float32Array(pixelCount);
-  const gradY = new Float32Array(pixelCount);
-  const gradient = new Float32Array(pixelCount);
-
-  const colorBalance = { r: 0, g: 0, b: 0 };
-  let shadowClipped = 0;
-  let highlightClipped = 0;
-  let midtoneSum = 0;
-  let midtoneCount = 0;
-
-  for (let i = 0; i < pixelCount; i++) {
-    const idx = i * 4;
-    const r = data[idx];
-    const g = data[idx + 1];
-    const b = data[idx + 2];
-    colorBalance.r += r;
-    colorBalance.g += g;
-    colorBalance.b += b;
-    const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    grayscale[i] = luminance;
-    if (luminance < 12) shadowClipped++;
-    if (luminance > 243) highlightClipped++;
-    if (luminance > 64 && luminance < 200) {
-      midtoneSum += luminance;
-      midtoneCount++;
-    }
-  }
-
-  colorBalance.r /= pixelCount;
-  colorBalance.g /= pixelCount;
-  colorBalance.b /= pixelCount;
-
-  let gradientSum = 0;
-  let orientationSumX = 0;
-  let orientationSumY = 0;
-  let orientationCount = 0;
-
-  for (let y = 1; y < height - 1; y++) {
-    for (let x = 1; x < width - 1; x++) {
-      const idx = y * width + x;
-      const gx =
-        -grayscale[idx - width - 1] - 2 * grayscale[idx - 1] - grayscale[idx + width - 1] +
-        grayscale[idx - width + 1] + 2 * grayscale[idx + 1] + grayscale[idx + width + 1];
-      const gy =
-        -grayscale[idx - width - 1] - 2 * grayscale[idx - width] - grayscale[idx - width + 1] +
-        grayscale[idx + width - 1] + 2 * grayscale[idx + width] + grayscale[idx + width + 1];
-      gradX[idx] = gx;
-      gradY[idx] = gy;
-      gradient[idx] = Math.hypot(gx, gy);
-      gradientSum += gradient[idx];
-    }
-  }
-
-  const stats = computeStatistics(grayscale);
-  const gradientThreshold = samplePercentile(gradient, 0.9);
-  const horizonThreshold = samplePercentile(gradient, 0.85);
-
-  let minX = width;
-  let minY = height;
-  let maxX = 0;
-  let maxY = 0;
-  let sumX = 0;
-  let sumY = 0;
-  let strongCount = 0;
-
-  let horizonAngle = 0;
-  let horizonWeight = 0;
-
-  for (let y = 1; y < height - 1; y++) {
-    for (let x = 1; x < width - 1; x++) {
-      const idx = y * width + x;
-      const magnitude = gradient[idx];
-      if (magnitude > gradientThreshold) {
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
-        sumX += x;
-        sumY += y;
-        strongCount++;
-      }
-      if (magnitude > horizonThreshold && y > height * 0.25 && y < height * 0.75) {
-        const gx = gradX[idx];
-        const gy = gradY[idx];
-        const angle = ((Math.atan2(gy, gx) * 180) / Math.PI) + 90;
-        const normalized = ((angle + 180) % 180) - 90;
-        horizonAngle += normalized * magnitude;
-        horizonWeight += magnitude;
-        const orientation = Math.atan2(gy, gx);
-        orientationSumX += Math.cos(2 * orientation) * magnitude;
-        orientationSumY += Math.sin(2 * orientation) * magnitude;
-        orientationCount += magnitude;
-      }
-    }
-  }
-
-  const metrics = {
-    imageSize: { width, height },
-    subjectRect: null,
-    subjectCenter: { x: width / 2, y: height / 2 },
-    subjectOffset: { x: 0, y: 0 },
-    subjectSize: 0,
-    horizonAngle: horizonWeight ? horizonAngle / horizonWeight : 0,
-    horizonLine: null,
-    ruleOfThirdsScore: 0,
-    sharpnessVariance: 0,
-    exposure: stats.mean,
-    contrast: stats.std,
-    saturation: 0,
-    colorBalance,
-    foregroundBackground: 0,
-    shadowClipping: shadowClipped / pixelCount,
-    highlightClipping: highlightClipped / pixelCount,
-    midtoneBalance: midtoneCount ? midtoneSum / (midtoneCount * 255) : stats.mean / 255,
-    colorCast: { bias: 0, warmBias: 0, coolBias: 0, strength: 0 },
-    leadingLines: { angle: 0, strength: 0 },
-    textureStrength: gradientSum / Math.max(1, pixelCount * 255),
-    feedback: []
-  };
-
-  const avgColor = (colorBalance.r + colorBalance.g + colorBalance.b) / 3;
-  const warmBias = colorBalance.r - avgColor;
-  const coolBias = colorBalance.b - avgColor;
-  metrics.colorCast = {
-    bias: warmBias - coolBias,
-    warmBias,
-    coolBias,
-    strength: Math.max(Math.abs(warmBias), Math.abs(coolBias)) / 255
-  };
-
-  if (orientationCount > 0) {
-    const strength = Math.hypot(orientationSumX, orientationSumY) / orientationCount;
-    const angle = (Math.atan2(orientationSumY, orientationSumX) / 2) * (180 / Math.PI);
-    metrics.leadingLines = { angle, strength };
-  }
-
-  if (strongCount > 50) {
-    const widthRect = maxX - minX;
-    const heightRect = maxY - minY;
-    metrics.subjectRect = {
-      x: Math.max(0, minX - 4),
-      y: Math.max(0, minY - 4),
-      width: Math.min(width, widthRect + 8),
-      height: Math.min(height, heightRect + 8)
-    };
-    metrics.subjectCenter = {
-      x: sumX / strongCount,
-      y: sumY / strongCount
-    };
-    metrics.subjectOffset = {
-      x: metrics.subjectCenter.x / width - 0.5,
-      y: metrics.subjectCenter.y / height - 0.5
-    };
-    metrics.subjectSize = (widthRect * heightRect) / (width * height);
-  }
-
-  const thirdsX = [width / 3, (2 * width) / 3];
-  const thirdsY = [height / 3, (2 * height) / 3];
-  const nearestX = Math.min(...thirdsX.map(x => Math.abs(metrics.subjectCenter.x - x)));
-  const nearestY = Math.min(...thirdsY.map(y => Math.abs(metrics.subjectCenter.y - y)));
-  metrics.ruleOfThirdsScore = 1 - (nearestX / width + nearestY / height);
-
-  let sharpnessAccumulator = 0;
-  for (let i = 0; i < gradient.length; i++) {
-    sharpnessAccumulator += gradient[i] * gradient[i];
-  }
-  metrics.sharpnessVariance = sharpnessAccumulator / gradient.length;
-
-  let saturationSum = 0;
-  for (let i = 0; i < pixelCount; i++) {
-    const idx = i * 4;
-    const r = data[idx] / 255;
-    const g = data[idx + 1] / 255;
-    const b = data[idx + 2] / 255;
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    saturationSum += max - min;
-  }
-  metrics.saturation = (saturationSum / pixelCount) * 255;
-
-  const half = Math.floor(height / 2);
-  let topSum = 0;
-  let bottomSum = 0;
-  for (let y = 0; y < half; y++) {
-    for (let x = 0; x < width; x++) {
-      topSum += grayscale[y * width + x];
-    }
-  }
-  for (let y = half; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      bottomSum += grayscale[y * width + x];
-    }
-  }
-  const topMean = topSum / (half * width);
-  const bottomMean = bottomSum / (Math.max(1, height - half) * width);
-  metrics.foregroundBackground = bottomMean / Math.max(1, topMean);
-
-  const center = { x: width / 2, y: height / 2 };
-  const angleRad = (metrics.horizonAngle * Math.PI) / 180;
-  const lengthLine = Math.max(width, height);
-  const dx = Math.cos(angleRad) * lengthLine;
-  const dy = Math.sin(angleRad) * lengthLine;
-  metrics.horizonLine = [
-    { x: center.x - dx / 2, y: center.y - dy / 2 },
-    { x: center.x + dx / 2, y: center.y + dy / 2 }
-  ];
-
-  const feedback = new Set();
-  if (Math.abs(metrics.horizonAngle) > 1.5) {
-    feedback.add('feedback_rotation');
-  }
-  if (metrics.subjectRect && metrics.ruleOfThirdsScore < 0.6) {
-    feedback.add('feedback_crop');
-  }
-  if (metrics.exposure < 110 && metrics.shadowClipping < 0.03) {
-    feedback.add('feedback_exposure');
-  }
-  if (metrics.highlightClipping > 0.035 || metrics.exposure > 165) {
-    feedback.add('feedback_highlights');
-  }
-  if (metrics.shadowClipping > 0.035) {
-    feedback.add('feedback_shadows');
-  }
-  if (metrics.contrast < 45 || metrics.textureStrength < 0.08) {
-    feedback.add('feedback_contrast');
-    feedback.add('feedback_local_contrast');
-  }
-  if (metrics.saturation < 50) {
-    feedback.add('feedback_saturation');
-    feedback.add('feedback_vibrance');
-  }
-  if (metrics.sharpnessVariance < 120) {
-    feedback.add('feedback_sharpness');
-  }
-  if (metrics.foregroundBackground < 0.8 || metrics.foregroundBackground > 1.2) {
-    feedback.add('feedback_balance');
-  }
-  if (metrics.colorCast.strength > 0.08) {
-    if (metrics.colorCast.bias >= 0) {
-      feedback.add('feedback_color_warm');
-    } else {
-      feedback.add('feedback_color_cool');
-    }
-  }
-  if (metrics.leadingLines.strength < 0.18 && metrics.subjectRect) {
-    feedback.add('feedback_leading_lines');
-  }
-  if (metrics.subjectSize < 0.14) {
-    feedback.add('feedback_vignette');
-  }
-  if (feedback.size === 0) {
-    feedback.add('feedback_good');
-  }
-  metrics.feedback = Array.from(feedback);
-
-  return metrics;
-}
-
-function improveImage(baseCanvas, metrics) {
-  const width = baseCanvas.width;
-  const height = baseCanvas.height;
-  const crop = computeCropBox(width, height, metrics);
-
-  const cropCanvas = document.createElement('canvas');
-  cropCanvas.width = crop.width;
-  cropCanvas.height = crop.height;
-  const cropCtx = cropCanvas.getContext('2d');
-  cropCtx.drawImage(baseCanvas, crop.x, crop.y, crop.width, crop.height, 0, 0, crop.width, crop.height);
-
-  const leveledAngle = clamp(metrics.horizonAngle, -18, 18);
-  const rotation = (-leveledAngle * Math.PI) / 180;
-  const rotatedCanvas = rotateCanvas(cropCanvas, rotation);
-
-  const cropCenter = { x: crop.width / 2, y: crop.height / 2 };
-  const focusRelative = {
-    x: crop.focus.x - cropCenter.x,
-    y: crop.focus.y - cropCenter.y
-  };
-  const rotatedFocus = {
-    x: rotatedCanvas.width / 2 + focusRelative.x * Math.cos(rotation) - focusRelative.y * Math.sin(rotation),
-    y: rotatedCanvas.height / 2 + focusRelative.x * Math.sin(rotation) + focusRelative.y * Math.cos(rotation)
-  };
-
-  const perspective = applySubtlePerspective(rotatedCanvas, metrics);
-  const perspectiveFocus = {
-    x: perspective.margin + rotatedFocus.x + perspective.skewX * rotatedFocus.y,
-    y: perspective.margin + rotatedFocus.y + perspective.skewY * rotatedFocus.x
-  };
-
-  const finalCanvas = document.createElement('canvas');
-  finalCanvas.width = crop.width;
-  finalCanvas.height = crop.height;
-  const finalCtx = finalCanvas.getContext('2d');
-
-  const distortion = Math.max(Math.abs(perspective.skewX), Math.abs(perspective.skewY));
-  const rotationInfluence = Math.abs(rotation);
-  const zoomPadding = rotationInfluence * 0.9 + distortion * 1.35 + (metrics.subjectSize < 0.18 ? 0.18 : 0.1);
-  const extraScale = 1 + Math.min(0.42, Math.max(0.12, zoomPadding + 0.04));
-  const availableWidth = perspective.canvas.width;
-  const availableHeight = perspective.canvas.height;
-  const targetAspect = crop.width / crop.height;
-
-  const contentBounds = computeContentBounds(perspective.canvas, 4);
-  let sampleX = 0;
-  let sampleY = 0;
-  let sampleWidth = crop.width * extraScale;
-  let sampleHeight = crop.height * extraScale;
-
-  if (contentBounds) {
-    const insetBaseX = Math.max(12, contentBounds.width * (0.08 + rotationInfluence * 0.16 + distortion * 0.22));
-    const insetBaseY = Math.max(12, contentBounds.height * (0.08 + rotationInfluence * 0.16 + distortion * 0.22));
-
-    let safeX = clamp(contentBounds.x + insetBaseX, 0, availableWidth - 1);
-    let safeY = clamp(contentBounds.y + insetBaseY, 0, availableHeight - 1);
-    let safeWidth = Math.max(1, contentBounds.width - insetBaseX * 2);
-    let safeHeight = Math.max(1, contentBounds.height - insetBaseY * 2);
-
-    if (safeX + safeWidth > availableWidth) {
-      safeWidth = availableWidth - safeX;
-    }
-    if (safeY + safeHeight > availableHeight) {
-      safeHeight = availableHeight - safeY;
-    }
-
-    const usableWidth = Math.max(1, safeWidth * 0.94);
-    const usableHeight = Math.max(1, safeHeight * 0.94);
-
-    let candidateWidth = Math.min(usableWidth, crop.width * extraScale * 0.94);
-    let candidateHeight = candidateWidth / targetAspect;
-
-    if (candidateHeight > usableHeight) {
-      candidateHeight = Math.min(usableHeight, crop.height * extraScale * 0.94);
-      candidateWidth = candidateHeight * targetAspect;
-    }
-
-    sampleWidth = Math.max(1, candidateWidth);
-    sampleHeight = Math.max(1, candidateHeight);
-
-    const halfWidth = sampleWidth / 2;
-    const halfHeight = sampleHeight / 2;
-    const minFocusX = safeX + halfWidth;
-    const maxFocusX = safeX + usableWidth - halfWidth;
-    const minFocusY = safeY + halfHeight;
-    const maxFocusY = safeY + usableHeight - halfHeight;
-
-    const focusX = usableWidth <= sampleWidth
-      ? safeX + (usableWidth - sampleWidth) / 2 + halfWidth
-      : clamp(perspectiveFocus.x, minFocusX, maxFocusX);
-    const focusY = usableHeight <= sampleHeight
-      ? safeY + (usableHeight - sampleHeight) / 2 + halfHeight
-      : clamp(perspectiveFocus.y, minFocusY, maxFocusY);
-
-    sampleX = clamp(focusX - halfWidth, safeX, safeX + usableWidth - sampleWidth);
-    sampleY = clamp(focusY - halfHeight, safeY, safeY + usableHeight - sampleHeight);
-  } else {
-    const widthMargin = Math.max(0, (availableWidth - crop.width) / 2);
-    const heightMargin = Math.max(0, (availableHeight - crop.height) / 2);
-    const guardX = Math.min(
-      availableWidth / 2 - 2,
-      Math.max(16, widthMargin * 0.7 + rotationInfluence * availableWidth * 0.24 + distortion * availableWidth * 0.34)
-    );
-    const guardY = Math.min(
-      availableHeight / 2 - 2,
-      Math.max(16, heightMargin * 0.7 + rotationInfluence * availableHeight * 0.24 + distortion * availableHeight * 0.34)
-    );
-    const maxWidth = Math.max(crop.width, availableWidth - guardX * 2);
-    const maxHeight = Math.max(crop.height, availableHeight - guardY * 2);
-    sampleWidth = Math.min(maxWidth, crop.width * extraScale * 0.94);
-    sampleHeight = Math.min(maxHeight, crop.height * extraScale * 0.94);
-    sampleX = (availableWidth - sampleWidth) / 2;
-    sampleY = (availableHeight - sampleHeight) / 2;
-  }
-
-  finalCtx.drawImage(
-    perspective.canvas,
-    sampleX,
-    sampleY,
-    sampleWidth,
-    sampleHeight,
-    0,
-    0,
-    crop.width,
-    crop.height
-  );
-
-  const focusPoint = {
-    x: clamp(((perspectiveFocus.x - sampleX) / sampleWidth) * crop.width, 0, crop.width),
-    y: clamp(((perspectiveFocus.y - sampleY) / sampleHeight) * crop.height, 0, crop.height)
-  };
-
-  applyToneAndColorAdjustments(finalCanvas, metrics, focusPoint);
-  const clarityAmount = metrics.textureStrength < 0.08 ? 0.038 : metrics.textureStrength < 0.12 ? 0.032 : 0.026;
-  applyLocalContrast(finalCanvas, clarityAmount);
-  const vignetteStrength = metrics.subjectSize < 0.12 ? 0.12 : metrics.subjectSize < 0.25 ? 0.08 : 0.05;
-  applyVignette(finalCanvas, vignetteStrength, focusPoint);
-
-  return fillCanvasGutters(finalCanvas);
-}
-
-function computeCropBox(width, height, metrics) {
-  const aspectPreference = width >= height ? 3 / 2 : 4 / 5;
-  const subjectMargin = metrics.subjectRect ? Math.max(0.1, 0.28 - metrics.subjectSize * 1.2) : 0.16;
-  let cropWidth = Math.round(width * (1 - subjectMargin));
-  let cropHeight = Math.round(height * (1 - subjectMargin));
-
-  if (cropWidth / cropHeight > aspectPreference) {
-    cropWidth = Math.round(cropHeight * aspectPreference);
-  } else {
-    cropHeight = Math.round(cropWidth / aspectPreference);
-  }
-
-  cropWidth = Math.min(cropWidth, width);
-  cropHeight = Math.min(cropHeight, height);
-
-  const baseX = metrics.subjectRect ? metrics.subjectCenter.x : width / 2;
-  const baseY = metrics.subjectRect ? metrics.subjectCenter.y : height / 2;
-  const horizontalBias = metrics.subjectRect
-    ? metrics.subjectCenter.x < width / 2
-      ? 0.32
-      : 0.68
-    : 0.5;
-  const verticalBias = metrics.subjectRect
-    ? metrics.subjectCenter.y < height / 2
-      ? 0.36
-      : 0.64
-    : 0.5;
-  const offsetInfluenceX = metrics.subjectOffset.x * width * 0.12;
-  const offsetInfluenceY = metrics.subjectOffset.y * height * 0.12;
-  const targetCenterX = baseX - cropWidth * (horizontalBias - 0.5) + offsetInfluenceX;
-  const targetCenterY = baseY - cropHeight * (verticalBias - 0.5) + offsetInfluenceY;
-  const alignmentStrengthX = metrics.subjectRect ? 0.7 : 0.45;
-  const alignmentStrengthY = metrics.subjectRect ? 0.55 : 0.4;
-  const blendedCenterX = baseX * (1 - alignmentStrengthX) + targetCenterX * alignmentStrengthX;
-  const blendedCenterY = baseY * (1 - alignmentStrengthY) + targetCenterY * alignmentStrengthY;
-
-  const centerX = clamp(blendedCenterX, cropWidth / 2, width - cropWidth / 2);
-  const centerY = clamp(blendedCenterY, cropHeight / 2, height - cropHeight / 2);
-
-  const x = Math.round(centerX - cropWidth / 2);
-  const y = Math.round(centerY - cropHeight / 2);
-
-  return {
-    x,
-    y,
-    width: cropWidth,
-    height: cropHeight,
-    focus: {
-      x: metrics.subjectRect ? metrics.subjectCenter.x - x : cropWidth / 2,
-      y: metrics.subjectRect ? metrics.subjectCenter.y - y : cropHeight / 2
-    }
-  };
-}
-
-function rotateCanvas(sourceCanvas, rotation) {
-  if (Math.abs(rotation) < 0.002) {
-    const clone = document.createElement('canvas');
-    clone.width = sourceCanvas.width;
-    clone.height = sourceCanvas.height;
-    clone.getContext('2d').drawImage(sourceCanvas, 0, 0);
-    return clone;
-  }
-  const width = sourceCanvas.width;
-  const height = sourceCanvas.height;
-  const cos = Math.cos(rotation);
-  const sin = Math.sin(rotation);
-  const rotatedWidth = Math.round(Math.abs(cos) * width + Math.abs(sin) * height);
-  const rotatedHeight = Math.round(Math.abs(sin) * width + Math.abs(cos) * height);
-  const rotatedCanvas = document.createElement('canvas');
-  rotatedCanvas.width = rotatedWidth;
-  rotatedCanvas.height = rotatedHeight;
-  const ctx = rotatedCanvas.getContext('2d');
-  ctx.translate(rotatedWidth / 2, rotatedHeight / 2);
-  ctx.rotate(rotation);
-  ctx.drawImage(sourceCanvas, -width / 2, -height / 2);
-  return rotatedCanvas;
-}
-
-function applySubtlePerspective(canvas, metrics) {
-  const width = canvas.width;
-  const height = canvas.height;
-  const maxDimension = Math.max(width, height);
-  const attitude = Math.max(Math.abs(metrics.subjectOffset.x), Math.abs(metrics.subjectOffset.y));
-  const angleInfluence = Math.min(0.18, Math.abs(metrics.horizonAngle) * 0.01);
-  const offsetInfluence = Math.min(0.12, attitude * 0.18);
-  const marginRatio = clamp(0.08 + angleInfluence * 0.6 + offsetInfluence * 0.8, 0.08, 0.18);
-  const margin = Math.round(maxDimension * marginRatio);
-  const skewX = clamp(metrics.subjectOffset.x * 0.05 + metrics.horizonAngle * 0.0012, -0.12, 0.12);
-  const skewY = clamp(metrics.subjectOffset.y * 0.045, -0.12, 0.12);
-  const warpedCanvas = document.createElement('canvas');
-  warpedCanvas.width = width + margin * 2;
-  warpedCanvas.height = height + margin * 2;
-  const ctx = warpedCanvas.getContext('2d');
-  ctx.translate(margin, margin);
-  ctx.transform(1, skewY, skewX, 1, 0, 0);
-  ctx.drawImage(canvas, 0, 0);
-  return { canvas: warpedCanvas, skewX, skewY, margin };
-}
-
-function toneCurve(value, options = {}) {
-  const {
-    shadowBoost = 0,
-    highlightPull = 0,
-    midtoneBias = 0,
-    blackLift = 0,
-    brightnessLift = 0
-  } = options;
-  let v = value;
-  if (shadowBoost > 0 && v < 0.6) {
-    const influence = (0.6 - v) / 0.6;
-    v += influence * shadowBoost * 0.35;
-  }
-  if (blackLift > 0 && v < 0.4) {
-    const influence = (0.4 - v) / 0.4;
-    v += influence * blackLift * 0.55;
-  }
-  if (highlightPull > 0 && v > 0.6) {
-    const influence = (v - 0.6) / 0.4;
-    v -= influence * highlightPull * 0.5;
-  }
-  v += midtoneBias;
-  v += brightnessLift;
-  return Math.min(1, Math.max(0, v));
-}
-
-function computeContentBounds(canvas, step = 4) {
-  const { width, height } = canvas;
-  if (!width || !height) {
-    return null;
-  }
-  const ctx = canvas.getContext('2d');
-  const { data } = ctx.getImageData(0, 0, width, height);
-  let minX = width;
-  let maxX = -1;
-  let minY = height;
-  let maxY = -1;
-  const alphaThreshold = 8;
-
-  for (let y = 0; y < height; y += step) {
-    const rowOffset = y * width * 4;
-    for (let x = 0; x < width; x += step) {
-      if (data[rowOffset + x * 4 + 3] > alphaThreshold) {
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
-      }
-    }
-  }
-
-  if (maxX < minX || maxY < minY) {
-    return null;
-  }
-
-  const refine = bounds => {
-    const startX = Math.max(0, bounds.x - step);
-    const endX = Math.min(width - 1, bounds.x + bounds.width + step);
-    const startY = Math.max(0, bounds.y - step);
-    const endY = Math.min(height - 1, bounds.y + bounds.height + step);
-
-    let top = startY;
-    while (top < endY) {
-      let hasPixel = false;
-      for (let x = startX; x <= endX; x++) {
-        if (data[(top * width + x) * 4 + 3] > alphaThreshold) {
-          hasPixel = true;
-          break;
-        }
-      }
-      if (hasPixel) break;
-      top++;
-    }
-
-    let bottom = endY;
-    while (bottom > top) {
-      let hasPixel = false;
-      for (let x = startX; x <= endX; x++) {
-        if (data[(bottom * width + x) * 4 + 3] > alphaThreshold) {
-          hasPixel = true;
-          break;
-        }
-      }
-      if (hasPixel) break;
-      bottom--;
-    }
-
-    let left = startX;
-    while (left < endX) {
-      let hasPixel = false;
-      for (let y = top; y <= bottom; y++) {
-        if (data[(y * width + left) * 4 + 3] > alphaThreshold) {
-          hasPixel = true;
-          break;
-        }
-      }
-      if (hasPixel) break;
-      left++;
-    }
-
-    let right = endX;
-    while (right > left) {
-      let hasPixel = false;
-      for (let y = top; y <= bottom; y++) {
-        if (data[(y * width + right) * 4 + 3] > alphaThreshold) {
-          hasPixel = true;
-          break;
-        }
-      }
-      if (hasPixel) break;
-      right--;
-    }
-
-    return {
-      x: left,
-      y: top,
-      width: Math.max(1, right - left + 1),
-      height: Math.max(1, bottom - top + 1)
-    };
-  };
-
-  return refine({
-    x: minX,
-    y: minY,
-    width: Math.max(1, maxX - minX + 1),
-    height: Math.max(1, maxY - minY + 1)
-  });
-}
-
-function fillCanvasGutters(canvas) {
-  const bounds = computeContentBounds(canvas, 1);
-  if (!bounds) {
-    return canvas;
-  }
-
-  const tolerance = 1;
-  if (
-    bounds.x <= tolerance &&
-    bounds.y <= tolerance &&
-    bounds.width >= canvas.width - tolerance * 2 &&
-    bounds.height >= canvas.height - tolerance * 2
-  ) {
-    return canvas;
-  }
-
-  const filled = document.createElement('canvas');
-  filled.width = canvas.width;
-  filled.height = canvas.height;
-  const ctx = filled.getContext('2d');
-  ctx.drawImage(
-    canvas,
-    bounds.x,
-    bounds.y,
-    bounds.width,
-    bounds.height,
-    0,
-    0,
-    filled.width,
-    filled.height
-  );
-  return filled;
-}
-
-function applyToneAndColorAdjustments(canvas, metrics, focusPoint) {
-  const ctx = canvas.getContext('2d');
-  const { width, height } = canvas;
-  const imageData = ctx.getImageData(0, 0, width, height);
-  const { data } = imageData;
-  const focus = focusPoint || { x: width / 2, y: height / 2 };
-  const focusRadius = Math.min(
-    Math.max(width, height),
-    Math.min(width, height) * (metrics.subjectSize > 0 ? Math.min(0.58, Math.max(0.32, Math.sqrt(metrics.subjectSize) * 1.1)) : 0.42)
-  );
-  const focusLift = metrics.subjectSize < 0.16 ? 0.038 : 0.028;
-  const brightnessLift = metrics.exposure < 120 ? 0.009 : metrics.exposure < 150 ? 0.007 : metrics.exposure < 180 ? 0.004 : 0.0025;
-  const shadowBoost = 0.028 + (metrics.shadowClipping > 0.035 ? 0.022 : metrics.shadowClipping > 0.02 ? 0.014 : 0.008);
-  const blackLift = 0.02 + (metrics.shadowClipping > 0.035 ? 0.018 : metrics.shadowClipping > 0.02 ? 0.012 : 0.006);
-  const highlightPull = Math.min(0.026, metrics.highlightClipping > 0.035 ? 0.026 : metrics.highlightClipping > 0.02 ? 0.018 : 0.01);
-  const midtoneBias = metrics.midtoneBalance < 0.48 ? 0.008 : metrics.midtoneBalance > 0.6 ? -0.006 : 0.004;
-  const colorBias = metrics.colorCast.bias;
-  const castStrength = Math.min(0.045, Math.abs(colorBias) / 900);
-  let warmShift = colorBias >= 0 ? castStrength : 0;
-  let coolShift = colorBias < 0 ? castStrength : 0;
-  const naturalWarmth = colorBias <= 16 ? 0.0025 : 0.0015;
-  const saturationTarget = metrics.subjectRect ? 118 : 110;
-  const saturationDelta = metrics.saturation - saturationTarget;
-  let vibrance = 0;
-  if (saturationDelta < -18) {
-    vibrance = Math.min(0.012, Math.max(0.004, (-saturationDelta) / 540));
-  } else if (saturationDelta > 26) {
-    vibrance = -Math.min(0.012, Math.max(0.004, saturationDelta / 620));
-  } else if (Math.abs(saturationDelta) <= 12 && metrics.textureStrength < 0.1) {
-    vibrance = 0.006;
-  }
-  const gamma = 1;
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const idx = (y * width + x) * 4;
-      let r = data[idx];
-      let g = data[idx + 1];
-      let b = data[idx + 2];
-
-      const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-      const tone = luminance / 255;
-      const mapped = toneCurve(tone, {
-        shadowBoost,
-        highlightPull,
-        midtoneBias,
-        blackLift,
-        brightnessLift
-      });
-      const toneScale = tone > 0 ? mapped / tone : mapped;
-      if (toneScale > 0) {
-        r = clamp(r * toneScale);
-        g = clamp(g * toneScale);
-        b = clamp(b * toneScale);
-      }
-
-      if (brightnessLift > 0) {
-        const lift = brightnessLift * 0.45;
-        r = clamp(r + (255 - r) * lift);
-        g = clamp(g + (255 - g) * lift);
-        b = clamp(b + (255 - b) * lift);
-      }
-
-      if (blackLift > 0 && tone < 0.45) {
-        const blackFactor = (0.45 - tone) / 0.45;
-        const blackGain = blackLift * blackFactor * 14;
-        r = clamp(r + blackGain);
-        g = clamp(g + blackGain);
-        b = clamp(b + blackGain);
-      }
-
-      const dx = x - focus.x;
-      const dy = y - focus.y;
-      const distance = Math.hypot(dx, dy);
-      const focusInfluence = focusRadius ? Math.max(0, 1 - distance / focusRadius) : 0;
-      if (focusInfluence > 0) {
-        const lift = 1 + focusInfluence * focusLift;
-        r = clamp(r * lift);
-        g = clamp(g * lift);
-        b = clamp(b * lift);
-      }
-
-      if (gamma !== 1) {
-        r = clamp(Math.pow(r / 255, gamma) * 255);
-        g = clamp(Math.pow(g / 255, gamma) * 255);
-        b = clamp(Math.pow(b / 255, gamma) * 255);
-      }
-
-      if (warmShift > 0) {
-        r = clamp(r - warmShift * 9);
-        b = clamp(b + warmShift * 6);
-      }
-      if (coolShift > 0) {
-        r = clamp(r + coolShift * 6);
-        b = clamp(b - coolShift * 9);
-      }
-
-      const warmthInfluence = Math.max(0, naturalWarmth - warmShift * 0.3);
-      if (warmthInfluence > 0) {
-        r = clamp(r + warmthInfluence * 7);
-        g = clamp(g + warmthInfluence * 3);
-        b = clamp(b - warmthInfluence * 8);
-      }
-
-      if (vibrance !== 0) {
-        const avg = (r + g + b) / 3;
-        const saturationWeight = Math.min(
-          1,
-          (Math.abs(r - avg) + Math.abs(g - avg) + Math.abs(b - avg)) / 255
-        );
-        const primaryBoost = 1 + vibrance * saturationWeight;
-        const secondaryBoost = 1 + vibrance * saturationWeight * 0.6;
-        r = clamp(avg + (r - avg) * primaryBoost);
-        g = clamp(avg + (g - avg) * secondaryBoost);
-        b = clamp(avg + (b - avg) * primaryBoost);
-      }
-
-      data[idx] = r;
-      data[idx + 1] = g;
-      data[idx + 2] = b;
-    }
-  }
-
-  ctx.putImageData(imageData, 0, 0);
-}
-
-function applyLocalContrast(canvas, amount = 0.03) {
-  if (!amount || amount <= 0) return;
-  const { width, height } = canvas;
-  if (!width || !height) return;
-  const ctx = canvas.getContext('2d');
-  const original = ctx.getImageData(0, 0, width, height);
-  const tempCanvas = document.createElement('canvas');
-  tempCanvas.width = width;
-  tempCanvas.height = height;
-  const tempCtx = tempCanvas.getContext('2d');
-  tempCtx.filter = 'blur(2px)';
-  tempCtx.drawImage(canvas, 0, 0, width, height);
-  const blurred = tempCtx.getImageData(0, 0, width, height);
-  const data = original.data;
-  const blurData = blurred.data;
-  for (let i = 0; i < data.length; i += 4) {
-    data[i] = clamp(data[i] + (data[i] - blurData[i]) * amount);
-    data[i + 1] = clamp(data[i + 1] + (data[i + 1] - blurData[i + 1]) * amount);
-    data[i + 2] = clamp(data[i + 2] + (data[i + 2] - blurData[i + 2]) * amount);
-  }
-  ctx.putImageData(original, 0, 0);
-}
-
-function applyVignette(canvas, strength = 0.1, focusPoint) {
-  if (!strength || strength <= 0) return;
-  const ctx = canvas.getContext('2d');
-  const { width, height } = canvas;
-  const imageData = ctx.getImageData(0, 0, width, height);
-  const { data } = imageData;
-  const center = focusPoint || { x: width / 2, y: height / 2 };
-  const maxDistance = Math.hypot(Math.max(center.x, width - center.x), Math.max(center.y, height - center.y));
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const idx = (y * width + x) * 4;
-      const dist = Math.hypot(x - center.x, y - center.y);
-      const influence = Math.min(1, dist / maxDistance);
-      const factor = 1 - strength * Math.pow(influence, 1.4);
-      data[idx] = clamp(data[idx] * factor);
-      data[idx + 1] = clamp(data[idx + 1] * factor);
-      data[idx + 2] = clamp(data[idx + 2] * factor);
-    }
-  }
-  ctx.putImageData(imageData, 0, 0);
-}
-
 async function processFile(file) {
   setLoading(true);
   downloadButton.disabled = true;
+  bestCandidate = null;
+  aiInferenceResults = null;
+  aiStatusState = 'loading';
+  updateAiPanel(null, null);
   try {
     const { canvas, imageData } = await readImageFile(file);
     lastOriginalCanvas = canvas;
-    currentMetrics = computeMetrics(imageData);
-    renderMetrics(currentMetrics);
-    updateAnalysisSummary(currentMetrics);
+    const saliency = estimateSaliency(imageData);
+    const horizon = estimateHorizon(imageData);
+    const detectors = { saliency, horizon };
+    const metrics = compositionEngine.analyse(imageData, detectors);
+    currentMetrics = metrics;
+
+    const candidates = compositionEngine.generateCandidates(canvas, metrics, detectors);
+    await aiController.initialize();
+    const scores = await aiController.scoreCandidates(candidates, {
+      imageSize: metrics.imageSize,
+      detectors
+    });
+    aiInferenceResults = scores;
+    const evaluated = compositionEngine.evaluateCandidates(candidates, scores);
+    bestCandidate = compositionEngine.selectBestCandidate(evaluated) || evaluated[0] || null;
+
+    if (bestCandidate) {
+      metrics.bestCrop = bestCandidate.crop;
+      metrics.bestRotation = bestCandidate.rotation;
+      metrics.ai = {
+        composition: bestCandidate.compositionScore,
+        aesthetic: bestCandidate.aestheticScore,
+        mode: bestCandidate.mode
+      };
+    } else if (candidates.length) {
+      metrics.bestCrop = candidates[0].crop;
+      metrics.bestRotation = candidates[0].rotation;
+    }
+
+    const status = aiController.getStatus();
+    aiStatusState = status.mode || status.status || 'rules';
+    engineStatusState = status.mode || status.status || 'rules';
+    updateStatusBadge();
+
+    renderMetrics(metrics);
+    updateAnalysisSummary(metrics);
 
     renderToCanvas(originalCanvas, lastOriginalCanvas, {
       showGuides: toggleGrid.checked,
-      metrics: currentMetrics,
-      includeAnnotations: true
+      metrics,
+      includeAnnotations: true,
+      highlightCrop: true
     });
     setCanvasMeta(originalMeta, lastOriginalCanvas);
 
-    lastImprovedCanvas = improveImage(lastOriginalCanvas, currentMetrics);
+    if (bestCandidate) {
+      const improved = compositionEngine.renderCandidate(lastOriginalCanvas, metrics, bestCandidate);
+      lastImprovedCanvas = improved.canvas;
+      metrics.bestCrop = improved.crop;
+      metrics.bestRotation = (bestCandidate.rotation ?? metrics.horizonAngle) || 0;
+    } else {
+      lastImprovedCanvas = canvas;
+    }
+
     renderToCanvas(improvedCanvas, lastImprovedCanvas, {
       showGuides: toggleGrid.checked,
-      metrics: currentMetrics,
-      includeAnnotations: false
+      metrics,
+      includeAnnotations: false,
+      highlightCrop: false
     });
     setCanvasMeta(improvedMeta, lastImprovedCanvas);
 
     await prepareDownload(lastImprovedCanvas);
+    updateAiPanel(bestCandidate, metrics);
   } catch (error) {
     console.error(error);
+    aiStatusState = 'error';
+    engineStatusState = 'error';
+    updateStatusBadge();
+    updateAiPanel(null, null);
     showError('error_processing', 'Unable to process this file. Please try another image.');
   } finally {
     setLoading(false);
@@ -1742,8 +1124,18 @@ async function init() {
   } catch (error) {
     console.warn('Unable to refresh dictionaries', error);
   }
-  engineStatusState = 'ready';
+  try {
+    const status = await aiController.initialize();
+    engineStatusState = status.mode || status.status || 'ready';
+    aiStatusState = engineStatusState;
+  } catch (error) {
+    console.warn('AI controller failed to initialize', error);
+    engineStatusState = 'rules';
+    aiStatusState = 'rules';
+  }
   updateStatusBadge();
+  updateAiPanel(null, null);
+  registerServiceWorker();
 }
 
 init();
@@ -1752,3 +1144,11 @@ window.addEventListener('beforeunload', () => {
   cleanupCanvases();
   revokeDownloadUrl();
 });
+
+function registerServiceWorker() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker
+      .register('./service-worker.js')
+      .catch(error => console.warn('Service worker registration failed', error));
+  }
+}
