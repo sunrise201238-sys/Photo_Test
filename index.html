@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Aesthetic Assistant</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="branding">
+        <div class="logo-mark" aria-hidden="true">ƒ</div>
+        <div class="branding-text">
+          <h1 data-i18n="app_title">Photo Aesthetic Assistant</h1>
+          <p data-i18n="app_tagline">Private, instant composition feedback in your browser.</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span class="status-badge" id="engine-status" data-i18n="engine_loading">Loading vision engine…</span>
+        <div class="lang-toggle" role="group" aria-label="Language toggle">
+          <button type="button" data-lang="en-US" class="active">English</button>
+          <button type="button" data-lang="zh-TW">繁體中文</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <section class="upload-panel">
+        <header class="panel-header">
+          <h2 data-i18n="analysis_heading">Analyse &amp; enhance instantly</h2>
+          <p data-i18n="analysis_subheading">Upload a single photo to receive automatic composition guidance and a refined suggestion.</p>
+        </header>
+        <div class="drop-zone" id="drop-zone" role="button" tabindex="0" aria-controls="file-input">
+          <input type="file" id="file-input" accept="image/*" hidden>
+          <div class="drop-illustration" aria-hidden="true"></div>
+          <p class="drop-title" data-i18n="drop_instructions">Drop an image here or click to choose a file.</p>
+          <p class="drop-hint" data-i18n="drop_hint">JPG, PNG, HEIC up to 12 MP. Processed privately on-device.</p>
+          <button type="button" id="upload-button" class="primary" data-i18n="select_button">Select Photo</button>
+        </div>
+        <div class="analysis-summary" id="analysis-summary" data-i18n="analysis_summary_default">Upload a photo to see composition notes tailored to your scene.</div>
+        <div class="metrics" id="metrics" aria-live="polite"></div>
+      </section>
+
+      <section class="preview-panel">
+        <div class="canvas-stack">
+          <div class="canvas-card">
+            <div class="canvas-header">
+              <h2 data-i18n="original_title">Original</h2>
+              <span class="canvas-meta" id="original-meta"></span>
+            </div>
+            <canvas id="original-canvas" width="640" height="480" role="img" aria-label="Original image preview"></canvas>
+          </div>
+          <div class="canvas-card">
+            <div class="canvas-header">
+              <h2 data-i18n="improved_title">Improved Suggestion</h2>
+              <span class="canvas-meta" id="improved-meta"></span>
+            </div>
+            <canvas id="improved-canvas" width="640" height="480" role="img" aria-label="Improved image preview"></canvas>
+            <button type="button" id="download-button" class="primary" data-i18n="download_button" disabled>Download Improved Image</button>
+          </div>
+        </div>
+        <div class="overlay-controls">
+          <label class="toggle">
+            <input type="checkbox" id="toggle-grid" checked>
+            <span data-i18n="toggle_grid">Show guides</span>
+          </label>
+          <button type="button" class="ghost" id="reset-button" data-i18n="reset_button">Reset</button>
+        </div>
+        <aside class="tip-grid">
+          <article class="tip-card">
+            <h3 data-i18n="tip_subject_title">Find the subject</h3>
+            <p data-i18n="tip_subject_text">The assistant highlights the strongest contour to estimate your main subject position.</p>
+          </article>
+          <article class="tip-card">
+            <h3 data-i18n="tip_horizon_title">Balance the horizon</h3>
+            <p data-i18n="tip_horizon_text">We detect dominant lines to level the scene and keep skies straight.</p>
+          </article>
+          <article class="tip-card">
+            <h3 data-i18n="tip_color_title">Polish the tones</h3>
+            <p data-i18n="tip_color_text">Subtle exposure, contrast, and color tweaks keep the improved version natural.</p>
+          </article>
+        </aside>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p data-i18n="footer_note">All processing happens locally in your browser. No uploads. No tracking.</p>
+    </footer>
+  </div>
+
+  <div id="error-toast" class="error-toast" hidden role="alert"></div>
+
+  <template id="metric-template">
+    <div class="metric">
+      <span class="metric-label"></span>
+      <span class="metric-value"></span>
+    </div>
+  </template>
+
+  <div id="loading-indicator" class="loading" hidden>
+    <div class="spinner" aria-hidden="true"></div>
+    <p data-i18n="loading">Processing photo…</p>
+  </div>
+
+  <script type="module" src="assets/js/main.js"></script>
+</body>
+</html>
