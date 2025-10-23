@@ -57,19 +57,21 @@ After training produces the best checkpoint (e.g., `checkpoints/emo_aen_v2_best.
 ```python
 !python tools/export_to_onnx.py \
     --checkpoint checkpoints/emo_aen_v2_best.pt \
-    --output models/emo_aen_v2.onnx \
+    --output tmp/emo_aen_v2.onnx \
     --dynamic-batch
 
 !python tools/quantize_onnx.py \
-    --input models/emo_aen_v2.onnx \
+    --input tmp/emo_aen_v2.onnx \
     --output models/emo_aen_v2_int8.onnx \
     --dtype int8
+
+!rm tmp/emo_aen_v2.onnx
 ```
 Record inference latency in the notebook by timing a batch of forward passes with both the FP32 and quantized models.
 
 ### 6. Retrieving Artifacts
-1. Copy the final ONNX file (`emo_aen_v2.onnx` or `emo_aen_v2_int8.onnx`), logs, and metrics back to Google Drive.
-2. Download the artifacts to your workstation and commit them under `models/` in this repository.
+1. Copy the quantised ONNX file (`emo_aen_v2_int8.onnx`), logs, and metrics back to Google Drive.
+2. Download the artifacts to your workstation and commit `models/emo_aen_v2_int8.onnx` to this repository.
 3. Update the frontend configuration (`assets/js/main.js` and service worker cache key, if applicable) and append the collected metrics to this report once local validation is complete.
 
 ## Pending Metrics

@@ -34,36 +34,36 @@ const aiProcessingMode = document.getElementById('ai-processing-mode');
 const fallbackDictionaries = {
   'en-US': {
     "app_title": "Photo Aesthetic Assistant",
-    "app_tagline": "Private, instant composition feedback in your browser.",
-    "analysis_heading": "Analyse & enhance instantly",
-    "analysis_subheading": "Upload a single photo to receive automatic composition guidance and a refined suggestion.",
-    "drop_instructions": "Drop an image here or click to choose a file.",
-    "drop_hint": "JPG, PNG, HEIC up to 12 MP. Processed privately on-device.",
+    "app_tagline": "Fast on-device photo critique.",
+    "analysis_heading": "Instant check",
+    "analysis_subheading": "Drop one shot for quick AI scores.",
+    "drop_instructions": "Drop an image or tap to upload.",
+    "drop_hint": "JPG/PNG/HEIC ≤12 MP, processed locally.",
     "select_button": "Select Photo",
     "reset_button": "Reset",
     "original_title": "Original",
     "improved_title": "Improved Suggestion",
     "download_button": "Download Improved Image",
     "toggle_grid": "Show guides",
-    "footer_note": "All processing happens locally in your browser. No uploads. No tracking.",
+    "footer_note": "All processing stays in your browser.",
     "loading": "Processing photo…",
     "engine_loading": "Loading vision engine…",
     "engine_ready": "Vision engine ready",
     "engine_error": "Vision engine unavailable",
-    "ai_panel_title": "AI composition insights",
+    "ai_panel_title": "AI scores",
     "ai_model_status_loading": "Model loading…",
     "ai_model_status_ready": "Model ready",
     "ai_model_status_rules": "Rules-only mode",
     "ai_model_status_error": "Model unavailable",
     "ai_model_status_cloud": "Cloud scoring active",
     "ai_status_offline": "Offline — using rule-based analysis",
-    "ai_status_ready": "Local AI scoring active",
-    "ai_status_rules": "Rule-based scoring active",
-    "ai_status_cloud": "Cloud AI scoring active",
-    "ai_mode_label": "Processing mode",
+    "ai_status_ready": "Local AI scoring",
+    "ai_status_rules": "Rule-based scoring",
+    "ai_status_cloud": "Cloud AI scoring",
+    "ai_mode_label": "Mode",
     "ai_mode_local": "Local",
     "ai_mode_cloud": "Cloud",
-    "ai_mode_rules": "Rules only",
+    "ai_mode_rules": "Rules",
     "ai_composition_score": "Composition",
     "ai_aesthetic_score": "Aesthetic",
     "ai_suggestion_crop": "Crop {{width}}×{{height}} px",
@@ -71,105 +71,72 @@ const fallbackDictionaries = {
     "ai_suggestion_thirds": "Thirds alignment {{score}}",
     "ai_suggestion_saliency": "Subject confidence {{confidence}}",
     "ai_latency_label": "Latency",
-    "ai_processing_mode": "Scoring",
+    "ai_processing_mode": "Run",
     "ai_processing_local": "Local",
     "ai_processing_cloud": "Cloud",
     "ai_processing_rules": "Rules",
     "ai_unavailable": "AI model unavailable – falling back to rules",
-    "metric_main_subject": "Main subject position",
-    "metric_horizon": "Horizon angle",
-    "metric_rule_of_thirds": "Rule-of-thirds alignment",
-    "metric_sharpness": "Sharpness variance",
-    "metric_exposure": "Exposure",
-    "metric_contrast": "Contrast",
-    "metric_saturation": "Saturation",
-    "metric_color_balance": "Color balance",
-    "metric_foreground_background": "Foreground vs. background",
-    "metric_subject_size": "Subject size",
-    "metric_shadow_clipping": "Shadow clipping",
-    "metric_highlight_clipping": "Highlight clipping",
-    "metric_midtone_balance": "Midtone balance",
-    "metric_color_cast_strength": "Color cast",
-    "metric_color_cast_warm": "Warm",
-    "metric_color_cast_cool": "Cool",
-    "metric_leading_lines": "Leading lines",
-    "metric_texture": "Texture energy",
+    "metric_model_label": "Model",
     "metric_download_name": "improved-photo",
-    "metric_feedback": "Suggestions",
-    "analysis_summary_default": "Upload a photo to see composition notes tailored to your scene.",
-    "summary_subject_missing": "<strong>Subject:</strong> No dominant subject detected — choose a clearer focal point.",
-    "summary_subject_centered": "<strong>Subject:</strong> Nicely balanced near the thirds intersections.",
-    "summary_subject_off_center": "<strong>Subject:</strong> Off-centre — cropping will guide the eye to a stronger point.",
-    "summary_horizon_level": "<strong>Horizon:</strong> Already level and steady.",
-    "summary_horizon_tilted": "<strong>Horizon:</strong> Tilted by {{angle}} — auto rotation applied.",
-    "summary_shadow_clipped": "<strong>Light:</strong> Shadows were crushed — lifted to recover detail.",
-    "summary_highlight_clipped": "<strong>Light:</strong> Highlights clipped; toned down to protect detail.",
-    "summary_exposure_dark": "<strong>Light:</strong> Slightly underexposed; midtones lifted in the suggestion.",
-    "summary_exposure_bright": "<strong>Light:</strong> Highlights are bright; toned down for balance.",
-    "summary_exposure_balanced": "<strong>Light:</strong> Balanced exposure with healthy midtones.",
-    "summary_balance_foreground": "<strong>Depth:</strong> Foreground dominates; background softened for separation.",
-    "summary_balance_background": "<strong>Depth:</strong> Background detail is strong; foreground contrast improved.",
-    "summary_balance_even": "<strong>Depth:</strong> Foreground and background feel evenly weighted.",
-    "summary_sharpness_soft": "<strong>Texture:</strong> Edges read soft — stabilise capture for extra crispness.",
-    "summary_color_warm": "<strong>Colour:</strong> Warm cast detected; neutralised for natural tones.",
-    "summary_color_cool": "<strong>Colour:</strong> Cool tint spotted; warmed for lifelike skin and skies.",
-    "summary_color_balanced": "<strong>Colour:</strong> Palette remains balanced after subtle toning.",
-    "summary_leading_lines": "<strong>Flow:</strong> Leading lines draw the eye along a {{angle}} direction.",
+    "analysis_summary_default": "Add a photo to view concise AI notes.",
+    "analysis_summary_compact": "Composition {{composition}} · Aesthetic {{aesthetic}}",
+    "analysis_summary_tip_prefix": "Tip",
+    "analysis_summary_rules": "Running rule heuristics until the model loads.",
     "tip_subject_title": "Find the subject",
-    "tip_subject_text": "The assistant highlights the strongest contour to estimate your main subject position.",
+    "tip_subject_text": "We outline the strongest subject zone.",
     "tip_horizon_title": "Balance the horizon",
-    "tip_horizon_text": "We detect dominant lines to level the scene and keep skies straight.",
+    "tip_horizon_text": "Dominant lines keep the frame level.",
     "tip_color_title": "Polish the tones",
-    "tip_color_text": "Subtle exposure, contrast, and color tweaks keep the improved version natural.",
+    "tip_color_text": "Small exposure tweaks keep it natural.",
     "meta_dimensions": "{{width}}×{{height}} px",
     "error_processing": "Unable to process this file. Please try another image.",
     "error_dictionary": "Using built-in language defaults. Some translations may be missing.",
-    "feedback_rotation": "Slightly rotate the horizon to level the scene.",
-    "feedback_crop": "Consider cropping so the subject sits on a thirds intersection.",
-    "feedback_exposure": "Brighten the midtones for better balance.",
-    "feedback_contrast": "Increase contrast to emphasize depth.",
-    "feedback_saturation": "Boost saturation slightly for richer color.",
-    "feedback_sharpness": "Try increasing focus or reducing camera shake.",
-    "feedback_balance": "Balance foreground and background elements for clarity.",
-    "feedback_highlights": "Recover highlights to protect bright detail.",
-    "feedback_shadows": "Lift shadow detail to avoid crushed blacks.",
-    "feedback_local_contrast": "Enhance micro-contrast so textures feel more defined.",
-    "feedback_vibrance": "Add vibrance for livelier hues without oversaturating.",
-    "feedback_color_warm": "Cool down the warm colour cast for neutral tones.",
-    "feedback_color_cool": "Warm up the cool colour shift to keep tones natural.",
-    "feedback_leading_lines": "Strengthen leading lines or perspective cues to guide the eye.",
-    "feedback_vignette": "Add a gentle vignette to spotlight the subject.",
-    "feedback_good": "Great balance! Only minor refinements suggested."
+    "feedback_rotation": "Level the horizon.",
+    "feedback_crop": "Crop toward a thirds point.",
+    "feedback_exposure": "Lift the midtones.",
+    "feedback_contrast": "Add a touch more contrast.",
+    "feedback_saturation": "Nudge saturation up.",
+    "feedback_sharpness": "Shoot steadier for sharper detail.",
+    "feedback_balance": "Balance foreground and background.",
+    "feedback_highlights": "Recover highlight detail.",
+    "feedback_shadows": "Open up the shadows.",
+    "feedback_local_contrast": "Boost micro-contrast.",
+    "feedback_vibrance": "Increase vibrance slightly.",
+    "feedback_color_warm": "Cool the warm cast.",
+    "feedback_color_cool": "Warm the cool cast.",
+    "feedback_leading_lines": "Emphasise leading lines.",
+    "feedback_vignette": "Add a gentle vignette.",
+    "feedback_good": "Looks balanced already."
   },
   'zh-TW': {
     "app_title": "影像美感助手",
-    "app_tagline": "完全在瀏覽器內即時提供構圖建議，隱私零外洩。",
-    "analysis_heading": "立即分析並優化",
-    "analysis_subheading": "上傳單張照片，即可獲得自動構圖建議與優化版本。",
-    "drop_instructions": "拖曳影像到此或點擊選擇檔案。",
-    "drop_hint": "支援 JPG、PNG、HEIC，最多 1200 萬像素。所有處理皆在本機完成。",
+    "app_tagline": "即時本機照片評分。",
+    "analysis_heading": "快速檢視",
+    "analysis_subheading": "上傳單張照片即可取得 AI 分數。",
+    "drop_instructions": "拖曳或點擊選擇影像。",
+    "drop_hint": "支援 JPG/PNG/HEIC，1200 萬畫素內，全程本機。",
     "select_button": "選擇照片",
     "reset_button": "重設",
     "original_title": "原始影像",
     "improved_title": "優化建議",
     "download_button": "下載優化影像",
     "toggle_grid": "顯示輔助線",
-    "footer_note": "所有處理都在您的瀏覽器內進行，不需上傳、不會追蹤。",
+    "footer_note": "所有處理皆在瀏覽器完成。",
     "loading": "影像分析中…",
     "engine_loading": "視覺引擎載入中…",
     "engine_ready": "視覺引擎就緒",
     "engine_error": "視覺引擎無法使用",
-    "ai_panel_title": "AI 構圖洞察",
+    "ai_panel_title": "AI 分數",
     "ai_model_status_loading": "模型載入中…",
     "ai_model_status_ready": "模型就緒",
-    "ai_model_status_rules": "僅使用規則模式",
+    "ai_model_status_rules": "僅使用規則",
     "ai_model_status_error": "模型無法使用",
     "ai_model_status_cloud": "雲端評分啟用",
     "ai_status_offline": "離線模式 — 使用規則分析",
-    "ai_status_ready": "本地 AI 評分啟用",
-    "ai_status_rules": "規則評分啟用",
-    "ai_status_cloud": "雲端 AI 評分啟用",
-    "ai_mode_label": "處理模式",
+    "ai_status_ready": "本地 AI 評分",
+    "ai_status_rules": "規則評估",
+    "ai_status_cloud": "雲端 AI 評分",
+    "ai_mode_label": "模式",
     "ai_mode_local": "本地",
     "ai_mode_cloud": "雲端",
     "ai_mode_rules": "規則",
@@ -180,75 +147,42 @@ const fallbackDictionaries = {
     "ai_suggestion_thirds": "三分線對齊 {{score}}",
     "ai_suggestion_saliency": "主體信心 {{confidence}}",
     "ai_latency_label": "延遲",
-    "ai_processing_mode": "評分",
+    "ai_processing_mode": "流程",
     "ai_processing_local": "本地",
     "ai_processing_cloud": "雲端",
     "ai_processing_rules": "規則",
     "ai_unavailable": "AI 模型不可用，改用規則評估",
-    "metric_main_subject": "主體位置",
-    "metric_horizon": "地平線角度",
-    "metric_rule_of_thirds": "三分構圖對齊",
-    "metric_sharpness": "銳利度變異",
-    "metric_exposure": "曝光",
-    "metric_contrast": "對比",
-    "metric_saturation": "飽和度",
-    "metric_color_balance": "色彩平衡",
-    "metric_foreground_background": "前景 / 背景比例",
-    "metric_subject_size": "主體比例",
-    "metric_shadow_clipping": "陰影裁切",
-    "metric_highlight_clipping": "高光裁切",
-    "metric_midtone_balance": "中間調平衡",
-    "metric_color_cast_strength": "色偏",
-    "metric_color_cast_warm": "偏暖",
-    "metric_color_cast_cool": "偏冷",
-    "metric_leading_lines": "引導線",
-    "metric_texture": "紋理能量",
+    "metric_model_label": "模型",
     "metric_download_name": "improved-photo",
-    "metric_feedback": "建議",
-    "analysis_summary_default": "上傳照片即可看到針對場景量身打造的構圖重點。",
-    "summary_subject_missing": "<strong>主體：</strong> 未偵測到明顯主體，請選擇更清楚的焦點。",
-    "summary_subject_centered": "<strong>主體：</strong> 已落在三分線附近，構圖平衡。",
-    "summary_subject_off_center": "<strong>主體：</strong> 稍微偏離三分線，裁切後可更聚焦。",
-    "summary_horizon_level": "<strong>地平線：</strong> 已經水平穩定。",
-    "summary_horizon_tilted": "<strong>地平線：</strong> 傾斜 {{angle}}，已自動校正。",
-    "summary_shadow_clipped": "<strong>光線：</strong> 陰影過暗，優化版本已拉回細節。",
-    "summary_highlight_clipped": "<strong>光線：</strong> 高光爆掉，已壓低保留紋理。",
-    "summary_exposure_dark": "<strong>光線：</strong> 稍微偏暗，優化版本提升了中間調。",
-    "summary_exposure_bright": "<strong>光線：</strong> 高光較亮，已適度壓低。",
-    "summary_exposure_balanced": "<strong>光線：</strong> 曝光均衡，中間調健康。",
-    "summary_balance_foreground": "<strong>景深：</strong> 前景佔比高，已讓背景更柔和。",
-    "summary_balance_background": "<strong>景深：</strong> 背景細節強烈，已提升前景對比。",
-    "summary_balance_even": "<strong>景深：</strong> 前景與背景比例平衡。",
-    "summary_sharpness_soft": "<strong>細節：</strong> 邊緣略軟，可嘗試穩定拍攝以提高銳利度。",
-    "summary_color_warm": "<strong>色彩：</strong> 偵測到暖色色偏，已稍微冷卻讓色調自然。",
-    "summary_color_cool": "<strong>色彩：</strong> 偵測到偏冷色調，已加暖讓膚色與天空更自然。",
-    "summary_color_balanced": "<strong>色彩：</strong> 維持中性平衡並微調色調。",
-    "summary_leading_lines": "<strong>視線：</strong> 引導線形成 {{angle}} 方向的動勢。",
+    "analysis_summary_default": "上傳照片即可查看精簡 AI 摘要。",
+    "analysis_summary_compact": "構圖 {{composition}} · 美感 {{aesthetic}}",
+    "analysis_summary_tip_prefix": "建議",
+    "analysis_summary_rules": "模型尚未載入，暫用規則評估。",
     "tip_subject_title": "鎖定主體",
-    "tip_subject_text": "透過強烈輪廓估計最有力的主體位置。",
+    "tip_subject_text": "顯示最強主體位置。",
     "tip_horizon_title": "維持水平",
-    "tip_horizon_text": "偵測主要線條自動校正地平線。",
+    "tip_horizon_text": "偵測線條協助校正。",
     "tip_color_title": "調整色調",
-    "tip_color_text": "細緻的曝光與色彩調整讓畫面自然不失真。",
+    "tip_color_text": "細緻曝光讓色調自然。",
     "meta_dimensions": "{{width}}×{{height}} px",
     "error_processing": "此檔案無法處理，請改用其他影像。",
     "error_dictionary": "使用內建語系字串，部分翻譯可能缺少。",
-    "feedback_rotation": "稍微旋轉地平線以保持水平。",
-    "feedback_crop": "調整裁切讓主體落在三分線上。",
-    "feedback_exposure": "提升中間調亮度讓畫面更平衡。",
-    "feedback_contrast": "增加對比以強化景深層次。",
-    "feedback_saturation": "些微提升飽和度讓色彩更鮮明。",
-    "feedback_sharpness": "拍攝時保持穩定以獲得更銳利的影像。",
-    "feedback_balance": "調整前景與背景比例讓構圖更清晰。",
-    "feedback_highlights": "回收高光避免亮部失真。",
-    "feedback_shadows": "提亮暗部保留陰影細節。",
-    "feedback_local_contrast": "加強微對比讓紋理更立體。",
-    "feedback_vibrance": "增加活力飽和讓色彩更生動。",
-    "feedback_color_warm": "稍微降低暖色色偏保持自然色調。",
-    "feedback_color_cool": "加入暖色減少偏冷色調。",
-    "feedback_leading_lines": "強化引導線或透視感來帶動視線。",
-    "feedback_vignette": "加上柔和暗角以聚焦主體。",
-    "feedback_good": "整體表現優異，只需細部微調。"
+    "feedback_rotation": "微調水平線。",
+    "feedback_crop": "裁切至三分線。",
+    "feedback_exposure": "提升中間調亮度。",
+    "feedback_contrast": "略增對比。",
+    "feedback_saturation": "稍微提高飽和度。",
+    "feedback_sharpness": "保持穩定獲得銳利度。",
+    "feedback_balance": "平衡前景與背景。",
+    "feedback_highlights": "回收高光細節。",
+    "feedback_shadows": "提亮暗部。",
+    "feedback_local_contrast": "加強細節對比。",
+    "feedback_vibrance": "增加活力飽和。",
+    "feedback_color_warm": "降低暖色色偏。",
+    "feedback_color_cool": "減少冷色色偏。",
+    "feedback_leading_lines": "加強引導線。",
+    "feedback_vignette": "加上柔和暗角。",
+    "feedback_good": "整體表現已很均衡。"
   }
 };
 
@@ -613,48 +547,44 @@ function translatePage() {
 function renderMetrics(metrics) {
   const dict = dictionaries[currentLang] || {};
   metricsContainer.innerHTML = '';
-  const castDirection = metrics.colorCast.bias >= 0 ? (dict['metric_color_cast_warm'] || 'Warm') : (dict['metric_color_cast_cool'] || 'Cool');
-  const castValue = `${castDirection} ${formatters.percent(Math.min(1, Math.abs(metrics.colorCast.strength)))}`;
-  const entries = [
-    ['metric_main_subject', `${formatters.percent(Math.max(0, 0.5 - Math.abs(metrics.subjectOffset.x)))} / ${formatters.percent(Math.max(0, 0.5 - Math.abs(metrics.subjectOffset.y)))}`],
-    ['metric_horizon', formatters.degrees(metrics.horizonAngle)],
-    ['metric_rule_of_thirds', formatters.score(metrics.ruleOfThirdsScore)],
-    ['metric_sharpness', formatters.numeric(metrics.sharpnessVariance)],
-    ['metric_exposure', formatters.numeric(metrics.exposure)],
-    ['metric_contrast', formatters.numeric(metrics.contrast)],
-    ['metric_saturation', formatters.numeric(metrics.saturation)],
-    ['metric_color_balance', `${metrics.colorBalance.r.toFixed(0)} / ${metrics.colorBalance.g.toFixed(0)} / ${metrics.colorBalance.b.toFixed(0)}`],
-    ['metric_foreground_background', formatters.score(metrics.foregroundBackground)],
-    ['metric_subject_size', formatters.percent(metrics.subjectSize)],
-    ['metric_shadow_clipping', formatters.percent(metrics.shadowClipping)],
-    ['metric_highlight_clipping', formatters.percent(metrics.highlightClipping)],
-    ['metric_midtone_balance', formatters.percent(metrics.midtoneBalance)],
-    ['metric_color_cast_strength', castValue],
-    ['metric_leading_lines', `${formatters.degrees(metrics.leadingLines.angle)} / ${formatters.percent(metrics.leadingLines.strength)}`],
-    ['metric_texture', formatters.percent(metrics.textureStrength)]
-  ];
-  if (metrics.ai) {
-    entries.unshift(['ai_aesthetic_score', formatters.score(metrics.ai.aesthetic || metrics.ai.composition)]);
-    entries.unshift(['ai_composition_score', formatters.score(metrics.ai.composition)]);
+  if (!metrics) {
+    return;
+  }
+
+  const entries = [];
+  const status = aiController.getStatus ? aiController.getStatus() : { mode: 'rules', latency: 0 };
+
+  entries.push(['metric_model_label', 'emo_aen_v2_int8.onnx']);
+
+  if (metrics.ai && typeof metrics.ai.composition === 'number') {
+    entries.push(['ai_composition_score', formatters.score(metrics.ai.composition)]);
+  }
+  if (metrics.ai && typeof metrics.ai.aesthetic === 'number') {
+    entries.push(['ai_aesthetic_score', formatters.score(metrics.ai.aesthetic)]);
+  }
+
+  const modeKeyMap = {
+    cloud: 'ai_mode_cloud',
+    local: 'ai_mode_local',
+    ready: 'ai_mode_local',
+    rules: 'ai_mode_rules',
+    loading: 'ai_mode_rules',
+    error: 'ai_mode_rules'
+  };
+  const modeLabel = dict[modeKeyMap[status.mode]] || dict['ai_mode_rules'] || 'Rules';
+  entries.push(['ai_mode_label', modeLabel]);
+
+  if (status && typeof status.latency === 'number' && status.latency > 0) {
+    entries.push(['ai_latency_label', `${Math.round(status.latency)} ms`]);
   }
 
   for (const [labelKey, value] of entries) {
+    if (value == null) continue;
     const fragment = metricTemplate.content.cloneNode(true);
     fragment.querySelector('.metric-label').textContent = dict[labelKey] || labelKey;
     fragment.querySelector('.metric-value').textContent = value;
     metricsContainer.appendChild(fragment);
   }
-
-  const feedbackWrap = document.createElement('div');
-  feedbackWrap.className = 'metric';
-  const label = document.createElement('span');
-  label.className = 'metric-label';
-  label.textContent = dict['metric_feedback'] || 'Suggestions';
-  const valueSpan = document.createElement('span');
-  valueSpan.className = 'metric-value';
-  valueSpan.innerHTML = metrics.feedback.map(key => dict[key] || key).join('<br>');
-  feedbackWrap.append(label, valueSpan);
-  metricsContainer.appendChild(feedbackWrap);
 }
 
 function updateAnalysisSummary(metrics) {
@@ -666,99 +596,27 @@ function updateAnalysisSummary(metrics) {
     return;
   }
 
-  const segments = [];
-  if (!metrics.subjectRect) {
-    segments.push(dict['summary_subject_missing']);
-  } else {
-    const offset = Math.max(Math.abs(metrics.subjectOffset.x), Math.abs(metrics.subjectOffset.y));
-    if (offset < 0.12) {
-      segments.push(dict['summary_subject_centered']);
-    } else {
-      segments.push(dict['summary_subject_off_center']);
-    }
-  }
-
-  if (Math.abs(metrics.horizonAngle) <= 1) {
-    segments.push(dict['summary_horizon_level']);
-  } else {
-    const template = dict['summary_horizon_tilted'] || '';
-    segments.push(template.replace('{{angle}}', formatters.degrees(Math.abs(metrics.horizonAngle))));
-  }
-
-  if (metrics.shadowClipping > 0.04) {
-    segments.push(dict['summary_shadow_clipped']);
-  } else if (metrics.highlightClipping > 0.04) {
-    segments.push(dict['summary_highlight_clipped']);
-  } else if (metrics.exposure < 110) {
-    segments.push(dict['summary_exposure_dark']);
-  } else if (metrics.exposure > 150) {
-    segments.push(dict['summary_exposure_bright']);
-  } else {
-    segments.push(dict['summary_exposure_balanced']);
-  }
-
-  if (metrics.foregroundBackground > 1.2) {
-    segments.push(dict['summary_balance_foreground']);
-  } else if (metrics.foregroundBackground < 0.8) {
-    segments.push(dict['summary_balance_background']);
-  } else {
-    segments.push(dict['summary_balance_even']);
-  }
-
-  if (metrics.sharpnessVariance < 120) {
-    segments.push(dict['summary_sharpness_soft']);
-  }
-
-  if (metrics.colorCast.strength > 0.08) {
-    const colorKey = metrics.colorCast.bias >= 0 ? 'summary_color_warm' : 'summary_color_cool';
-    segments.push(dict[colorKey]);
-  } else {
-    segments.push(dict['summary_color_balanced']);
-  }
-
-  if (metrics.leadingLines.strength > 0.35) {
-    const template = dict['summary_leading_lines'] || '';
-    segments.push(template.replace('{{angle}}', formatters.degrees(Math.abs(metrics.leadingLines.angle))));
-  }
-
-  const items = segments.filter(Boolean);
-  if (!items.length) {
-    analysisSummary.textContent = dict['analysis_summary_default'] || '';
+  const hasAi = metrics.ai && typeof metrics.ai.composition === 'number';
+  if (!hasAi) {
+    analysisSummary.textContent = dict['analysis_summary_rules'] || dict['analysis_summary_default'] || '';
     return;
   }
 
-  const fragment = document.createDocumentFragment();
-  for (const segment of items) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'summary-item';
+  const compositionScore = metrics.ai.composition;
+  const aestheticScore = typeof metrics.ai.aesthetic === 'number' ? metrics.ai.aesthetic : metrics.ai.composition;
+  const template = dict['analysis_summary_compact'] || '';
+  const summary = template
+    .replace('{{composition}}', formatters.score(compositionScore))
+    .replace('{{aesthetic}}', formatters.score(aestheticScore));
 
-    const temp = document.createElement('div');
-    temp.innerHTML = segment;
-    const strong = temp.querySelector('strong');
-
-    if (strong) {
-      const label = document.createElement('span');
-      label.className = 'summary-label';
-      label.textContent = strong.textContent.trim();
-      const text = document.createElement('span');
-      text.className = 'summary-text';
-      strong.remove();
-      const detail = temp.textContent.trim();
-      text.textContent = detail;
-      wrapper.append(label, text);
-    } else {
-      wrapper.classList.add('summary-item--single');
-      const text = document.createElement('span');
-      text.className = 'summary-text';
-      const detail = temp.textContent.trim();
-      text.textContent = detail;
-      wrapper.append(text);
-    }
-
-    fragment.appendChild(wrapper);
+  const tipKey = Array.isArray(metrics.feedback) && metrics.feedback.length ? metrics.feedback[0] : null;
+  const tipText = tipKey ? dict[tipKey] : '';
+  if (tipText) {
+    const tipPrefix = dict['analysis_summary_tip_prefix'] || 'Tip';
+    analysisSummary.textContent = `${summary} · ${tipPrefix} ${tipText}`;
+  } else {
+    analysisSummary.textContent = summary;
   }
-
-  analysisSummary.appendChild(fragment);
 }
 
 function scaleDimensions(width, height, maxSize) {
