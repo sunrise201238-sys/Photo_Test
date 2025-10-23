@@ -376,13 +376,23 @@ function applySubtlePerspective(canvas, metrics) {
   const height = canvas.height;
   const maxDimension = Math.max(width, height);
   const offsetMagnitude = Math.hypot(metrics.subjectOffset.x, metrics.subjectOffset.y);
-  const angleInfluence = Math.min(0.14, Math.abs(metrics.horizonAngle) * 0.0075);
-  const offsetInfluence = Math.min(0.1, offsetMagnitude * 0.16);
-  const marginRatio = clamp(0.1 + angleInfluence * 0.55 + offsetInfluence * 0.7, 0.1, 0.22);
+  const rotationInfluence = Math.min(0.2, Math.abs(metrics.horizonAngle) * 0.009);
+  const offsetInfluence = Math.min(0.12, offsetMagnitude * 0.2);
+  const marginRatio = clamp(0.14 + rotationInfluence * 0.6 + offsetInfluence * 0.8, 0.14, 0.3);
   const margin = Math.round(maxDimension * marginRatio);
-  const skewLimit = metrics.subjectRect ? 0.07 : 0.055;
-  const skewX = clamp(metrics.subjectOffset.x * 0.032 + metrics.horizonAngle * 0.00065, -skewLimit, skewLimit);
-  const skewY = clamp(metrics.subjectOffset.y * 0.03, -skewLimit, skewLimit);
+  const horizonConfidence = clamp(
+    metrics.horizonConfidence ?? metrics.detectors?.horizon?.confidence ?? 0,
+    0,
+    1
+  );
+  const stabilityGuard = clamp(1 - (1 - horizonConfidence) * 0.55 - rotationInfluence * 1.6, 0.32, 1);
+  const skewLimit = (metrics.subjectRect ? 0.052 : 0.042) * stabilityGuard;
+  const skewX = clamp(
+    metrics.subjectOffset.x * 0.026 + metrics.horizonAngle * 0.00042,
+    -skewLimit,
+    skewLimit
+  );
+  const skewY = clamp(metrics.subjectOffset.y * 0.024, -skewLimit, skewLimit);
   const warpedCanvas = document.createElement('canvas');
   warpedCanvas.width = width + margin * 2;
   warpedCanvas.height = height + margin * 2;
@@ -419,7 +429,8 @@ function toneCurve(value, options = {}) {
   return Math.min(1, Math.max(0, v));
 }
 
-function computeContentBounds(canvas, step = 4) {
+function computeContentBounds(canvas, options = {}) {
+  const { step = 4, alphaThreshold = 8, shrink = 0, shrinkRatio = 0 } = options;
   const { width, height } = canvas;
   if (!width || !height) {
     return null;
@@ -430,8 +441,6 @@ function computeContentBounds(canvas, step = 4) {
   let maxX = -1;
   let minY = height;
   let maxY = -1;
-  const alphaThreshold = 8;
-
   for (let y = 0; y < height; y += step) {
     const rowOffset = y * width * 4;
     for (let x = 0; x < width; x += step) {
@@ -506,11 +515,31 @@ function computeContentBounds(canvas, step = 4) {
       right--;
     }
 
-    return {
+    const refined = {
       x: left,
       y: top,
       width: Math.max(1, right - left + 1),
       height: Math.max(1, bottom - top + 1)
+    };
+
+    const shrinkPixels = Math.max(
+      0,
+      shrink || Math.round(Math.max(width, height) * shrinkRatio)
+    );
+    if (!shrinkPixels) {
+      return refined;
+    }
+
+    const shrinkLeft = Math.min(shrinkPixels, refined.width > shrinkPixels * 2 ? shrinkPixels : 0);
+    const shrinkTop = Math.min(shrinkPixels, refined.height > shrinkPixels * 2 ? shrinkPixels : 0);
+    const shrinkRight = Math.min(shrinkPixels, refined.width > shrinkPixels * 2 ? shrinkPixels : 0);
+    const shrinkBottom = Math.min(shrinkPixels, refined.height > shrinkPixels * 2 ? shrinkPixels : 0);
+
+    return {
+      x: Math.min(width - 1, refined.x + shrinkLeft),
+      y: Math.min(height - 1, refined.y + shrinkTop),
+      width: Math.max(1, refined.width - (shrinkLeft + shrinkRight)),
+      height: Math.max(1, refined.height - (shrinkTop + shrinkBottom))
     };
   };
 
@@ -523,7 +552,7 @@ function computeContentBounds(canvas, step = 4) {
 }
 
 function fillCanvasGutters(canvas) {
-  const bounds = computeContentBounds(canvas, 2);
+  const bounds = computeContentBounds(canvas, { step: 2, alphaThreshold: 10, shrinkRatio: 0.012 });
   if (!bounds) {
     return canvas;
   }
@@ -757,7 +786,16 @@ function improveImage(baseCanvas, metrics, candidateOptions = {}) {
   const cropCtx = cropCanvas.getContext('2d');
   cropCtx.drawImage(baseCanvas, crop.x, crop.y, crop.width, crop.height, 0, 0, crop.width, crop.height);
 
-  const desiredAngle = typeof candidateOptions.rotation === 'number' ? candidateOptions.rotation : metrics.horizonAngle;
+  const rotationConfidence = clamp(
+    metrics.horizonConfidence ?? metrics.detectors?.horizon?.confidence ?? 0,
+    0,
+    1
+  );
+  const rotationScale = rotationConfidence > 0.86 ? 1 : Math.pow(rotationConfidence, 1.4);
+  const desiredAngle =
+    typeof candidateOptions.rotation === 'number'
+      ? candidateOptions.rotation
+      : metrics.horizonAngle * rotationScale;
   const leveledAngle = clamp(desiredAngle, -18, 18);
   const rotation = (-leveledAngle * Math.PI) / 180;
   const rotatedCanvas = rotateCanvas(cropCanvas, rotation);
@@ -791,7 +829,11 @@ function improveImage(baseCanvas, metrics, candidateOptions = {}) {
   const availableHeight = perspective.canvas.height;
   const targetAspect = crop.width / crop.height;
 
-  const contentBounds = computeContentBounds(perspective.canvas, 4);
+  const contentBounds = computeContentBounds(perspective.canvas, {
+    step: 3,
+    alphaThreshold: 12,
+    shrinkRatio: 0.018
+  });
   let sampleX = contentBounds ? contentBounds.x : 0;
   let sampleY = contentBounds ? contentBounds.y : 0;
   let sampleWidth = contentBounds ? contentBounds.width : availableWidth;
@@ -892,6 +934,7 @@ function candidateFeatures(metrics, candidate, detectors = {}) {
 
   const cropArea = (candidate.crop.width * candidate.crop.height) / (imageSize.width * imageSize.height);
   const subjectRatio = (subject.width * subject.height) / (candidate.crop.width * candidate.crop.height);
+  const rotationApplied = candidate.rotation ?? metrics.horizonAngle ?? 0;
 
   return {
     ruleOfThirdsScore: clamp(ruleScore, 0, 1),
@@ -904,6 +947,7 @@ function candidateFeatures(metrics, candidate, detectors = {}) {
     colorHarmony: metrics.colorHarmony,
     subjectSize: subjectRatio,
     leadingLineStrength: metrics.leadingLines.strength,
+    rotationApplied,
     vector: [
       clamp(ruleScore, 0, 1),
       detectors.saliency?.confidence ?? metrics.saliencyConfidence,
@@ -948,10 +992,16 @@ export class CompositionEngine {
 
   generateCandidates(baseCanvas, metrics, detectors = {}) {
     const variations = variationList().slice(0, this.maxCandidates);
+    const horizonConfidence = clamp(
+      metrics.horizonConfidence ?? metrics.detectors?.horizon?.confidence ?? 0,
+      0,
+      1
+    );
+    const rotationScale = horizonConfidence > 0.86 ? 1 : Math.pow(horizonConfidence, 1.4);
     const candidates = variations.map(variation => {
       const crop = computeCropBox(baseCanvas.width, baseCanvas.height, metrics, variation);
-      const rotation = metrics.horizonAngle;
-      const features = candidateFeatures(metrics, { crop }, detectors);
+      const rotation = metrics.horizonAngle * rotationScale;
+      const features = candidateFeatures(metrics, { crop, rotation }, detectors);
       return {
         id: variation.id,
         crop,
@@ -964,26 +1014,59 @@ export class CompositionEngine {
   }
 
   evaluateCandidates(candidates, scores) {
-    return candidates.map((candidate, idx) => ({
-      ...candidate,
-      compositionScore: scores[idx]?.composition ?? 0.5,
-      aestheticScore: scores[idx]?.aesthetic ?? 0.5,
-      mode: scores[idx]?.mode || 'rules'
-    }));
+    return candidates.map((candidate, idx) => {
+      const result = scores?.[idx] || {};
+      const compositionScore = result.composition ?? 0.5;
+      const aestheticScore = result.aesthetic ?? compositionScore;
+      const mode = result.mode || 'rules';
+      const isModelInference = mode === 'local' || mode === 'cloud';
+      const thirdsScore = candidate.features?.ruleOfThirdsScore ?? 0.5;
+      const saliencyScore = candidate.features?.saliencyConfidence ?? 0.5;
+      const balanceRatio = candidate.features?.balanceRatio ?? 1;
+      const colorHarmony = candidate.features?.colorHarmony ?? 0.5;
+      const baseScore = isModelInference
+        ? Math.min(1, compositionScore * 0.68 + aestheticScore * 0.32)
+        : Math.min(
+            1,
+            compositionScore * 0.45 +
+              aestheticScore * 0.25 +
+              thirdsScore * 0.18 +
+              saliencyScore * 0.07 +
+              colorHarmony * 0.05
+          );
+      const balancePenalty = Math.min(0.12, Math.abs(balanceRatio - 1) * 0.18);
+      const horizonConfidence = clamp(candidate.features?.horizonConfidence ?? 0.5, 0, 1);
+      const rotationDegrees = Math.abs(candidate.rotation ?? candidate.features?.rotationApplied ?? 0);
+      const rotationPenalty = rotationDegrees
+        ? Math.min(0.45, (rotationDegrees / 18) * (1.05 - horizonConfidence * 0.78))
+        : 0;
+      const stabilityGuard = clamp(1 - (rotationPenalty + balancePenalty), 0.4, 1);
+      const overallScore = clamp(baseScore * stabilityGuard, 0, 1);
+
+      return {
+        ...candidate,
+        compositionScore,
+        aestheticScore,
+        mode,
+        overallScore
+      };
+    });
   }
 
   selectBestCandidate(scoredCandidates) {
     if (!scoredCandidates.length) return null;
     return scoredCandidates.reduce((best, candidate) => {
       if (!best) return candidate;
-      if (candidate.compositionScore > best.compositionScore) {
+      if (candidate.overallScore > best.overallScore) {
         return candidate;
       }
-      if (
-        candidate.compositionScore === best.compositionScore &&
-        candidate.aestheticScore > best.aestheticScore
-      ) {
-        return candidate;
+      if (candidate.overallScore === best.overallScore) {
+        if (candidate.compositionScore > best.compositionScore) {
+          return candidate;
+        }
+        if (candidate.compositionScore === best.compositionScore && candidate.aestheticScore > best.aestheticScore) {
+          return candidate;
+        }
       }
       return best;
     }, null);
