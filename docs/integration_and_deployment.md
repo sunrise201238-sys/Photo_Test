@@ -9,7 +9,7 @@ The front-end now embeds the Emo-AEN lightweight assessment model. The UI expose
 - `assets/js/worker_infer.js` – worker script that loads the ONNX/TF.js model (when available) and evaluates feature batches.
 - `assets/js/horizon_detector.js` / `assets/js/saliency_fallback.js` – lightweight horizon and saliency estimators used prior to inference.
 - `assets/css/ai_panel.css` – styles for the AI summary card and overlays.
-- `models/emo_aen_v1_quant.onnx` – placeholder for the quantised model artefact (replace with the trained export).
+- `models/emo_aen_v2_int8.onnx` – placeholder for the quantised model artefact (replace with the trained export).
 - `service-worker.js` – caches core assets and the model for offline operation.
 
 ## Browser Integration Steps
@@ -29,7 +29,7 @@ The front-end now embeds the Emo-AEN lightweight assessment model. The UI expose
 ## Updating the Model
 1. Re-export the trained network to ONNX/TF.js (see training guide).
 2. Quantise to FP16 or INT8 (ONNX Runtime quantisation toolkit or TF.js post-training quantisation).
-3. Replace `models/emo_aen_v1_quant.onnx` with the new artefact and update `modelVersion` inside `main.js` (and optionally `CACHE_NAME`).
+3. Replace `models/emo_aen_v2_int8.onnx` with the new artefact and update `modelVersion` inside `main.js` (and optionally `CACHE_NAME`).
 4. Run `npm run build` / bundler steps if applicable, then redeploy.
 
 ## Monitoring & Telemetry (Optional)

@@ -375,13 +375,14 @@ function applySubtlePerspective(canvas, metrics) {
   const width = canvas.width;
   const height = canvas.height;
   const maxDimension = Math.max(width, height);
-  const attitude = Math.max(Math.abs(metrics.subjectOffset.x), Math.abs(metrics.subjectOffset.y));
-  const angleInfluence = Math.min(0.18, Math.abs(metrics.horizonAngle) * 0.01);
-  const offsetInfluence = Math.min(0.12, attitude * 0.18);
-  const marginRatio = clamp(0.08 + angleInfluence * 0.6 + offsetInfluence * 0.8, 0.08, 0.18);
+  const offsetMagnitude = Math.hypot(metrics.subjectOffset.x, metrics.subjectOffset.y);
+  const angleInfluence = Math.min(0.14, Math.abs(metrics.horizonAngle) * 0.0075);
+  const offsetInfluence = Math.min(0.1, offsetMagnitude * 0.16);
+  const marginRatio = clamp(0.1 + angleInfluence * 0.55 + offsetInfluence * 0.7, 0.1, 0.22);
   const margin = Math.round(maxDimension * marginRatio);
-  const skewX = clamp(metrics.subjectOffset.x * 0.05 + metrics.horizonAngle * 0.0012, -0.12, 0.12);
-  const skewY = clamp(metrics.subjectOffset.y * 0.045, -0.12, 0.12);
+  const skewLimit = metrics.subjectRect ? 0.07 : 0.055;
+  const skewX = clamp(metrics.subjectOffset.x * 0.032 + metrics.horizonAngle * 0.00065, -skewLimit, skewLimit);
+  const skewY = clamp(metrics.subjectOffset.y * 0.03, -skewLimit, skewLimit);
   const warpedCanvas = document.createElement('canvas');
   warpedCanvas.width = width + margin * 2;
   warpedCanvas.height = height + margin * 2;
@@ -783,40 +784,61 @@ function improveImage(baseCanvas, metrics, candidateOptions = {}) {
   const finalCtx = finalCanvas.getContext('2d');
 
   const distortion = Math.max(Math.abs(perspective.skewX), Math.abs(perspective.skewY));
-  const rotationInfluence = Math.abs(rotation);
-  const zoomPadding = rotationInfluence * 0.9 + distortion * 1.35 + (metrics.subjectSize < 0.18 ? 0.18 : 0.1);
-  const extraScale = 1 + Math.min(0.42, Math.max(0.12, zoomPadding + 0.04));
+  const rotationDegrees = Math.abs(leveledAngle);
+  const zoomPadding = rotationDegrees * 0.017 + distortion * 1.65 + (metrics.subjectSize < 0.18 ? 0.22 : 0.12);
+  const extraScale = 1 + Math.min(0.6, Math.max(0.2, zoomPadding + 0.08));
   const availableWidth = perspective.canvas.width;
   const availableHeight = perspective.canvas.height;
   const targetAspect = crop.width / crop.height;
 
   const contentBounds = computeContentBounds(perspective.canvas, 4);
-  let sampleX = 0;
-  let sampleY = 0;
-  let sampleWidth = availableWidth;
-  let sampleHeight = availableHeight;
+  let sampleX = contentBounds ? contentBounds.x : 0;
+  let sampleY = contentBounds ? contentBounds.y : 0;
+  let sampleWidth = contentBounds ? contentBounds.width : availableWidth;
+  let sampleHeight = contentBounds ? contentBounds.height : availableHeight;
 
-  if (contentBounds) {
-    sampleWidth = contentBounds.width;
-    sampleHeight = contentBounds.height;
-    sampleX = contentBounds.x;
-    sampleY = contentBounds.y;
+  const desiredWidth = Math.min(sampleWidth, Math.round(crop.width * extraScale));
+  const desiredHeight = Math.min(sampleHeight, Math.round(crop.height * extraScale));
+
+  let adjustedWidth = desiredWidth;
+  let adjustedHeight = desiredHeight;
+
+  if (adjustedWidth / adjustedHeight > targetAspect) {
+    adjustedWidth = Math.round(adjustedHeight * targetAspect);
+  } else {
+    adjustedHeight = Math.round(adjustedWidth / targetAspect);
   }
 
-  const scaledWidth = Math.min(sampleWidth, Math.round(crop.width * extraScale));
-  const scaledHeight = Math.min(sampleHeight, Math.round(crop.height * extraScale));
-  const scaledAspect = scaledWidth / scaledHeight;
+  adjustedWidth = Math.max(crop.width, Math.min(adjustedWidth, sampleWidth));
+  adjustedHeight = Math.max(crop.height, Math.min(adjustedHeight, sampleHeight));
 
-  if (scaledAspect > targetAspect) {
-    const adjustedWidth = Math.round(scaledHeight * targetAspect);
-    sampleX += Math.max(0, Math.floor((scaledWidth - adjustedWidth) / 2));
+  const widthExcess = sampleWidth - adjustedWidth;
+  const heightExcess = sampleHeight - adjustedHeight;
+
+  if (widthExcess > 0) {
+    sampleX += Math.floor(widthExcess / 2);
     sampleWidth = adjustedWidth;
-    sampleHeight = scaledHeight;
-  } else {
-    const adjustedHeight = Math.round(scaledWidth / targetAspect);
-    sampleY += Math.max(0, Math.floor((scaledHeight - adjustedHeight) / 2));
+  }
+  if (heightExcess > 0) {
+    sampleY += Math.floor(heightExcess / 2);
     sampleHeight = adjustedHeight;
-    sampleWidth = scaledWidth;
+  }
+
+  const safetyRatio = Math.min(0.24, rotationDegrees * 0.018 + distortion * 0.65);
+  const marginXLimit = Math.max(0, Math.floor((sampleWidth - crop.width) / 2));
+  const marginYLimit = Math.max(0, Math.floor((sampleHeight - crop.height) / 2));
+  let marginX = Math.round(sampleWidth * (0.03 + safetyRatio * 0.5));
+  let marginY = Math.round(sampleHeight * (0.025 + safetyRatio * 0.45));
+  marginX = Math.min(marginX, marginXLimit);
+  marginY = Math.min(marginY, marginYLimit);
+
+  if (marginX > 0) {
+    sampleX += marginX;
+    sampleWidth -= marginX * 2;
+  }
+  if (marginY > 0) {
+    sampleY += marginY;
+    sampleHeight -= marginY * 2;
   }
 
   finalCtx.drawImage(

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'photo-assistant-v1';
+const CACHE_NAME = 'photo-assistant-v2';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
@@ -12,7 +12,7 @@ const PRECACHE_URLS = [
   '/assets/js/worker_infer.js',
   '/translations/en-US.json',
   '/translations/zh-TW.json',
-  '/models/emo_aen_v1_quant.onnx'
+  '/models/emo_aen_v2_int8.onnx'
 ];
 
 self.addEventListener('install', event => {
