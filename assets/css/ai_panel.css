@@ -5,7 +5,7 @@
   padding: 1.1rem 1.2rem;
   display: grid;
   gap: 1rem;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02), 0 18px 40px -32px rgba(32, 164, 243, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02), 0 18px 40px -32px rgba(255, 140, 64, 0.4);
 }
 
 .ai-panel__header {
@@ -26,8 +26,8 @@
   color: var(--accent);
   border-radius: 999px;
   padding: 0.2rem 0.7rem;
-  border: 1px solid rgba(91, 192, 255, 0.32);
-  background: rgba(91, 192, 255, 0.12);
+  border: 1px solid rgba(255, 155, 73, 0.4);
+  background: rgba(255, 155, 73, 0.16);
 }
 
 .ai-metrics {
@@ -39,8 +39,8 @@
 }
 
 .ai-metrics div {
-  background: rgba(91, 192, 255, 0.08);
-  border: 1px solid rgba(91, 192, 255, 0.18);
+  background: rgba(255, 155, 73, 0.12);
+  border: 1px solid rgba(255, 155, 73, 0.2);
   border-radius: 14px;
   padding: 0.6rem 0.75rem;
 }
