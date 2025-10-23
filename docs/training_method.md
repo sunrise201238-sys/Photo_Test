@@ -47,16 +47,16 @@ Add an auxiliary regression head if mean opinion scores are available, weighting
 4. Document results in `docs/model_changelog.md` with dataset hash and configuration references.
 
 ## 7. Export and Deployment
-1. Convert the final checkpoint to ONNX: `python export.py --checkpoint checkpoints/best.pt --onnx models/emo_aen.onnx --dynamic`.
-2. Quantize the ONNX model with `python tools/quantize_onnx.py --input models/emo_aen.onnx --output models/emo_aen_int8.onnx`.
-3. Validate parity between FP32 and INT8 exports using the evaluation script.
-4. Bundle artifacts with metadata (version, training date, dataset hash) and update the web client manifest.
+1. Export the final checkpoint to a temporary ONNX file: `python export.py --checkpoint checkpoints/best.pt --onnx tmp/emo_aen_v2.onnx --dynamic`.
+2. Quantize that export into the production asset `models/emo_aen_v2_int8.onnx` with `python tools/quantize_onnx.py --input tmp/emo_aen_v2.onnx --output models/emo_aen_v2_int8.onnx` and discard the temporary file after verification.
+3. Validate parity between the checkpoint outputs and `emo_aen_v2_int8.onnx` using the evaluation script.
+4. Bundle the quantised artifact with metadata (version, training date, dataset hash) and update the web client manifest.
 
 ## 8. Automation Checklist
 - [ ] Dataset validated and splits locked.
 - [ ] Preprocessing config committed.
 - [ ] Training logs archived in `weights & biases` project `emo-aen`.
-- [ ] Best checkpoint and ONNX exports stored in `models/`.
+- [ ] Best checkpoint archived and `models/emo_aen_v2_int8.onnx` updated.
 - [ ] Documentation updated with metrics and configuration.
 
 Following this method ensures reproducible Emo-AEN model training with explicit checkpoints for quality and deployment readiness.
