@@ -1,5 +1,5 @@
 {
-"train": [],
-"val": [],
-"test": []
+"train": ["folder_001","folder_002","folder_003","folder_004","folder_005","folder_007","folder_008","folder_009","folder_010","folder_011","folder_012","folder_013","folder_014","folder_016","folder_017","folder_020","folder_021","folder_022","folder_023","folder_024","folder_026","folder_027","folder_028","folder_029","folder_030","folder_032","folder_034","folder_036","folder_037","folder_038","folder_039","folder_040","folder_041","folder_042","folder_043","folder_044","folder_046","folder_048","folder_049","folder_050","folder_051","folder_052","folder_054","folder_055","folder_056","folder_057","folder_058","folder_059","folder_061","folder_062","folder_063","folder_064","folder_068","folder_069","folder_070","folder_072","folder_074","folder_075","folder_076","folder_077","folder_078","folder_079","folder_080","folder_081","folder_082","folder_083","folder_084","folder_086","folder_088","folder_089","folder_090","folder_091","folder_092","folder_093","folder_094","folder_095","folder_096","folder_097","folder_098","folder_099"],
+"val": ["folder_006","folder_018","folder_031","folder_035","folder_045","folder_053","folder_060","folder_071","folder_085","folder_100"],
+"test": ["folder_047","folder_066","folder_087","folder_015","folder_019","folder_025","folder_073","folder_067","folder_065","folder_033"]
 }
