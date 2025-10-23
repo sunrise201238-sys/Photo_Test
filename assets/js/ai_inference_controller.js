@@ -1,4 +1,4 @@
-const DEFAULT_MODEL_URL = 'models/emo_aen_v1_quant.onnx';
+const DEFAULT_MODEL_URL = 'models/emo_aen_v2_int8.onnx';
 const WORKER_PATH = new URL('./worker_infer.js', import.meta.url);
 
 function now() {
@@ -23,7 +23,7 @@ export class AIInferenceController {
   constructor(options = {}) {
     this.modelUrl = options.modelUrl || DEFAULT_MODEL_URL;
     this.modelFormat = options.modelFormat || 'onnx';
-    this.modelVersion = options.modelVersion || 'v1.0.0';
+    this.modelVersion = options.modelVersion || 'v2.0.0';
     this.backendEndpoint = options.backendEndpoint || null;
     this.worker = null;
     this.status = 'idle';
